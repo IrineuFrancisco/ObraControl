@@ -1,0 +1,14 @@
+# Arquivos sensíveis, fotos reais de notas e configurações locais (NUNCA enviar para o GitHub público)
+ignore.txt
+.env
+.env.*
+config.local.js
+*.local.json
+assets/comprovantes/
+
+# Arquivos de sistema e editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+node_modules/
