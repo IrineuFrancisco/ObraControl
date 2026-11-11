@@ -118,7 +118,9 @@ window.ObraStore = {
     const equipments = this.state.equipments || [];
     const labor = this.state.labor || [];
 
-    const totalPlanned = budgets.reduce((acc, b) => acc + Number(b.plannedAmount || 0), 0);
+    const stagesPlanned = budgets.reduce((acc, b) => acc + Number(b.plannedAmount || 0), 0);
+    const customBudget = Number(this.state.projectInfo?.customTotalBudget || 0);
+    const totalPlanned = customBudget > 0 ? customBudget : stagesPlanned;
 
     const materialsSpent = purchases
       .filter(p => p.category !== "Taxas")
@@ -197,6 +199,7 @@ window.ObraStore = {
 
     return {
       totalPlanned,
+      stagesPlanned,
       totalSpent,
       totalPaid,
       totalPending,
@@ -228,6 +231,26 @@ window.ObraStore = {
   // =========================================================================
   // CRUD COM SINCRONIZAÇÃO AUTOMÁTICA NO BANCO DE DADOS (SUPABASE)
   // =========================================================================
+
+  // 0. Dados Gerais da Obra (Nome da Obra, Cliente, Orçamento Global)
+  saveProjectInfo(infoData) {
+    this.state.projectInfo = {
+      ...(this.state.projectInfo || {}),
+      ...infoData
+    };
+    this.saveLocalOnly();
+    if (window.ObraDB) {
+      window.ObraDB.syncRecordUpsert("obra_quotations", {
+        id: "__project_info__",
+        qty: "META",
+        material: "PROJECT_INFO",
+        prices: this.state.projectInfo,
+        winner: "",
+        status: "ACTIVE",
+        updated_at: new Date().toISOString()
+      });
+    }
+  },
 
   // 1. Orçamentos
   saveBudget(budgetData) {

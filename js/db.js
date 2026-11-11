@@ -491,7 +491,17 @@ window.ObraDB = {
           window.ObraStore.state.labor = resLabor.data.map(r => this.mapRowToLabor(r));
         }
         if (resQuotations.data && resQuotations.data.length > 0) {
-          window.ObraStore.state.quotations = resQuotations.data.map(r => this.mapRowToQuotation(r));
+          const metaRow = resQuotations.data.find(r => r.id === "__project_info__");
+          if (metaRow && metaRow.prices) {
+            window.ObraStore.state.projectInfo = {
+              ...(window.ObraStore.state.projectInfo || {}),
+              ...metaRow.prices
+            };
+          }
+          const normalRows = resQuotations.data.filter(r => r.id !== "__project_info__");
+          if (normalRows.length > 0) {
+            window.ObraStore.state.quotations = normalRows.map(r => this.mapRowToQuotation(r));
+          }
         }
         window.ObraStore.saveLocalOnly();
         if (window.ObraApp) window.ObraApp.renderAll();
@@ -527,8 +537,20 @@ window.ObraDB = {
       if (st.labor && st.labor.length > 0) {
         ops.push(this.client.from("obra_labor").upsert(st.labor.map(l => this.mapLaborToRow(l))));
       }
-      if (st.quotations && st.quotations.length > 0) {
-        ops.push(this.client.from("obra_quotations").upsert(st.quotations.map(q => this.mapQuotationToRow(q))));
+      const quotationRows = (st.quotations || []).map(q => this.mapQuotationToRow(q));
+      if (st.projectInfo) {
+        quotationRows.push({
+          id: "__project_info__",
+          qty: "META",
+          material: "PROJECT_INFO",
+          prices: st.projectInfo,
+          winner: "",
+          status: "ACTIVE",
+          updated_at: new Date().toISOString()
+        });
+      }
+      if (quotationRows.length > 0) {
+        ops.push(this.client.from("obra_quotations").upsert(quotationRows));
       }
 
       const results = await Promise.all(ops);

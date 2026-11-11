@@ -160,12 +160,17 @@
             <h1 id="header-project-name" class="text-sm sm:text-base font-extrabold text-slate-900 truncate">
               ObraControl Pro — Gestão de Obras
             </h1>
+            <button onclick="window.ObraApp.openProjectInfoDrawer()"
+              title="Editar Nome da Obra, Cliente e Orçamento Total"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-slate-900 border border-slate-200 transition-colors shrink-0">
+              <i data-lucide="pencil" class="w-3 h-3"></i> Editar Obra
+            </button>
             <span
               class="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Em Execução
             </span>
           </div>
-          <p class="text-xs text-slate-500 truncate">
+          <p id="header-client-subtitle" class="text-xs text-slate-500 truncate">
             Controle Financeiro em Tempo Real • Data Base: <strong>10/11/2026</strong>
           </p>
         </div>
@@ -206,17 +211,24 @@
           <div class="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs flex flex-col justify-between">
             <div class="flex items-center justify-between mb-3">
               <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Orçamento Total (Previsto)</span>
-              <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
-                <i data-lucide="wallet" class="w-5 h-5"></i>
-              </div>
+              <button onclick="window.ObraApp.openProjectInfoDrawer()"
+                title="Alterar Orçamento Total ou Nome do Cliente"
+                class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 flex items-center justify-center transition-colors">
+                <i data-lucide="pencil" class="w-4 h-4"></i>
+              </button>
             </div>
             <div>
               <p id="kpi-planned"
                 class="text-2xl sm:text-3xl font-extrabold text-slate-900 font-mono-num tracking-tight">R$ 0,00</p>
-              <p class="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
-                <i data-lucide="layers" class="w-3.5 h-3.5 text-slate-400"></i>
-                Planejamento distribuído em 6 etapas
-              </p>
+              <div class="flex items-center justify-between mt-1.5">
+                <p id="kpi-planned-sub" class="text-xs text-slate-500 flex items-center gap-1">
+                  Soma automática das etapas
+                </p>
+                <button onclick="window.ObraApp.openProjectInfoDrawer()"
+                  class="text-[11px] font-bold text-blue-600 hover:underline">
+                  Alterar
+                </button>
+              </div>
             </div>
           </div>
 

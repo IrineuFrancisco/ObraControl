@@ -81,9 +81,29 @@ window.ObraApp = {
   },
 
   renderHeaderStats(summary) {
+    const info = window.ObraStore.state.projectInfo || {};
     const projectTitleEl = document.getElementById("header-project-name");
-    if (projectTitleEl && window.ObraStore.state.projectInfo) {
-      projectTitleEl.textContent = window.ObraStore.state.projectInfo.name;
+    if (projectTitleEl) {
+      projectTitleEl.textContent = info.name || "ObraControl Pro — Gestão de Obras";
+    }
+    const clientSubEl = document.getElementById("header-client-subtitle");
+    if (clientSubEl) {
+      const clientText = info.client ? `Proprietário: <strong>${info.client}</strong>` : "Controle Financeiro em Tempo Real";
+      const refDate = window.ObraStore.formatDateBR(info.referenceDate || "2026-11-10");
+      clientSubEl.innerHTML = `${clientText} • Data Base: <strong>${refDate}</strong>`;
+    }
+    const sidebarClientEl = document.getElementById("sidebar-client-name");
+    if (sidebarClientEl) {
+      sidebarClientEl.textContent = info.client || "Painel Ativo";
+    }
+    const plannedSubEl = document.getElementById("kpi-planned-sub");
+    if (plannedSubEl) {
+      const stagesCount = (window.ObraStore.state.budgets || []).length;
+      if (Number(info.customTotalBudget) > 0) {
+        plannedSubEl.textContent = `Orçamento Global Fixo (${stagesCount} etapas)`;
+      } else {
+        plannedSubEl.textContent = `Soma automática de ${stagesCount} etapas`;
+      }
     }
 
     // Badge de alertas de equipamentos no menu
@@ -999,6 +1019,81 @@ window.ObraApp = {
     return unique.map(s => `<option value="${s}" ${s === selectedStage ? "selected" : ""}>${s}</option>`).join("");
   },
 
+  // --- 0. Form Dados da Obra, Nome do Cliente e Orçamento Total ---
+  openProjectInfoDrawer() {
+    const info = window.ObraStore.state.projectInfo || {};
+    const summary = window.ObraStore.getFinancialSummary();
+    const fmt = window.ObraStore.formatCurrency;
+    const customBudget = Number(info.customTotalBudget || 0) > 0 ? info.customTotalBudget : "";
+
+    const html = `
+      <form onsubmit="window.ObraApp.submitProjectInfoForm(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Nome da Obra / Projeto *</label>
+          <input type="text" name="name" required value="${info.name || ""}" placeholder="Ex: Obra Residencial & Galpão - Presidente Prudente/SP" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-amber-500 outline-none">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Nome do Cliente / Proprietário *</label>
+            <input type="text" name="client" required value="${info.client || ""}" placeholder="Ex: Filipe Asselino" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-amber-500 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Cidade / Localização</label>
+            <input type="text" name="location" value="${info.location || ""}" placeholder="Ex: Presidente Prudente - SP" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-amber-500 outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Engenheiro / Responsável</label>
+            <input type="text" name="engineer" value="${info.engineer || ""}" placeholder="Ex: Eng. Responsável" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-amber-500 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Data Base do Painel *</label>
+            <input type="date" name="referenceDate" required value="${info.referenceDate || "2026-11-10"}" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono-num focus:ring-2 focus:ring-amber-500 outline-none">
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2.5">
+          <label class="block text-xs font-extrabold uppercase text-slate-900">Orçamento Total Previsto da Obra (R$)</label>
+          <input type="number" step="0.01" min="0" name="customTotalBudget" value="${customBudget}" placeholder="Deixe em branco para somar as etapas (${fmt(summary.stagesPlanned)})" class="w-full px-3.5 py-2.5 rounded-xl border-2 border-amber-400 bg-white text-sm font-bold font-mono-num text-slate-900 outline-none focus:ring-2 focus:ring-amber-500">
+          <p class="text-[11px] text-slate-600 leading-relaxed">
+            • <strong>Se preencher um valor acima:</strong> O card "Orçamento Total (Previsto)" do Dashboard usará exatamente esse valor global.<br>
+            • <strong>Se deixar em branco (ou 0):</strong> O sistema calculará automaticamente a soma das etapas cadastradas em <em>Orçamentos & Cotações</em> (atualmente <strong>${fmt(summary.stagesPlanned)}</strong>).
+          </p>
+        </div>
+
+        <div class="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
+          <button type="button" onclick="window.ObraApp.closeDrawer()" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm">Salvar Alterações</button>
+        </div>
+      </form>
+    `;
+
+    this.openDrawer(
+      "Editar Dados da Obra & Orçamento Total",
+      "Personalize o nome da obra, proprietário e defina o orçamento global.",
+      html
+    );
+  },
+
+  submitProjectInfoForm(e) {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const rawBudget = parseFloat(fd.get("customTotalBudget"));
+    window.ObraStore.saveProjectInfo({
+      name: fd.get("name").trim(),
+      client: fd.get("client").trim(),
+      location: (fd.get("location") || "").trim(),
+      engineer: (fd.get("engineer") || "").trim(),
+      referenceDate: fd.get("referenceDate") || "2026-11-10",
+      customTotalBudget: !isNaN(rawBudget) && rawBudget > 0 ? rawBudget : 0
+    });
+    this.closeDrawer();
+    this.renderAll();
+  },
+
   // --- 1. Form Orçamento (Etapa) ---
   openBudgetDrawer(id = null) {
     const existing = id ? window.ObraStore.state.budgets.find(b => b.id === id) : null;
@@ -1889,18 +1984,18 @@ window.ObraApp = {
 
   async copySqlSchema() {
     const sql = `DROP TRIGGER IF EXISTS trg_auto_confirm_users ON auth.users; DROP FUNCTION IF EXISTS public.auto_confirm_new_users();
-UPDATE auth.users SET email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE lower(email) = 'irineufrancisco@gmail.com';
+UPDATE auth.users SET email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE lower(email) IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com');
 CREATE TABLE IF NOT EXISTS public.obra_budgets (id TEXT PRIMARY KEY, stage TEXT NOT NULL, category TEXT NOT NULL, planned_amount NUMERIC(12,2) NOT NULL DEFAULT 0, description TEXT, color TEXT DEFAULT '#2563eb', updated_at TIMESTAMPTZ DEFAULT NOW());
 CREATE TABLE IF NOT EXISTS public.obra_purchases (id TEXT PRIMARY KEY, date TEXT NOT NULL, item TEXT NOT NULL, quantity NUMERIC(12,3) NOT NULL DEFAULT 1, unit TEXT DEFAULT 'un', unit_price NUMERIC(12,4) NOT NULL DEFAULT 0, discount NUMERIC(12,2) DEFAULT 0, total_price NUMERIC(12,2) NOT NULL DEFAULT 0, supplier TEXT NOT NULL, stage TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'Materiais', payment_method TEXT DEFAULT 'PIX', status TEXT NOT NULL DEFAULT 'Pago', invoice_number TEXT, receipt_url TEXT, notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
 CREATE TABLE IF NOT EXISTS public.obra_equipments (id TEXT PRIMARY KEY, name TEXT NOT NULL, supplier TEXT NOT NULL, stage TEXT NOT NULL, start_date TEXT NOT NULL, expected_return_date TEXT NOT NULL, actual_return_date TEXT, billing_type TEXT DEFAULT 'Diária', unit_rate NUMERIC(12,2) NOT NULL DEFAULT 0, quantity NUMERIC(10,2) NOT NULL DEFAULT 1, total_price NUMERIC(12,2) NOT NULL DEFAULT 0, payment_status TEXT NOT NULL DEFAULT 'Pendente', rental_status TEXT NOT NULL DEFAULT 'Em Uso', notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
 CREATE TABLE IF NOT EXISTS public.obra_labor (id TEXT PRIMARY KEY, date TEXT NOT NULL, worker_name TEXT NOT NULL, role TEXT NOT NULL, contract_type TEXT NOT NULL DEFAULT 'Diária', quantity NUMERIC(10,2) NOT NULL DEFAULT 1, unit_rate NUMERIC(12,2) NOT NULL DEFAULT 0, total_price NUMERIC(12,2) NOT NULL DEFAULT 0, stage TEXT NOT NULL, status TEXT DEFAULT 'Pago', payment_method TEXT DEFAULT 'PIX', notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
 CREATE TABLE IF NOT EXISTS public.obra_quotations (id TEXT PRIMARY KEY, qty TEXT NOT NULL, material TEXT NOT NULL, prices JSONB NOT NULL DEFAULT '{}'::jsonb, winner TEXT, status TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
 ALTER TABLE public.obra_budgets ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_purchases ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_equipments ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_labor ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_quotations ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "p1" ON public.obra_budgets; DROP POLICY IF EXISTS "Auth obra_budgets" ON public.obra_budgets; CREATE POLICY "Auth obra_budgets" ON public.obra_budgets FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com') WITH CHECK (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com');
-DROP POLICY IF EXISTS "p2" ON public.obra_purchases; DROP POLICY IF EXISTS "Auth obra_purchases" ON public.obra_purchases; CREATE POLICY "Auth obra_purchases" ON public.obra_purchases FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com') WITH CHECK (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com');
-DROP POLICY IF EXISTS "p3" ON public.obra_equipments; DROP POLICY IF EXISTS "Auth obra_equipments" ON public.obra_equipments; CREATE POLICY "Auth obra_equipments" ON public.obra_equipments FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com') WITH CHECK (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com');
-DROP POLICY IF EXISTS "p4" ON public.obra_labor; DROP POLICY IF EXISTS "Auth obra_labor" ON public.obra_labor; CREATE POLICY "Auth obra_labor" ON public.obra_labor FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com') WITH CHECK (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com');
-DROP POLICY IF EXISTS "p5" ON public.obra_quotations; DROP POLICY IF EXISTS "Auth obra_quotations" ON public.obra_quotations; CREATE POLICY "Auth obra_quotations" ON public.obra_quotations FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com') WITH CHECK (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com');`;
+DROP POLICY IF EXISTS "p1" ON public.obra_budgets; DROP POLICY IF EXISTS "Auth obra_budgets" ON public.obra_budgets; CREATE POLICY "Auth obra_budgets" ON public.obra_budgets FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com')) WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
+DROP POLICY IF EXISTS "p2" ON public.obra_purchases; DROP POLICY IF EXISTS "Auth obra_purchases" ON public.obra_purchases; CREATE POLICY "Auth obra_purchases" ON public.obra_purchases FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com')) WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
+DROP POLICY IF EXISTS "p3" ON public.obra_equipments; DROP POLICY IF EXISTS "Auth obra_equipments" ON public.obra_equipments; CREATE POLICY "Auth obra_equipments" ON public.obra_equipments FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com')) WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
+DROP POLICY IF EXISTS "p4" ON public.obra_labor; DROP POLICY IF EXISTS "Auth obra_labor" ON public.obra_labor; CREATE POLICY "Auth obra_labor" ON public.obra_labor FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com')) WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
+DROP POLICY IF EXISTS "p5" ON public.obra_quotations; DROP POLICY IF EXISTS "Auth obra_quotations" ON public.obra_quotations; CREATE POLICY "Auth obra_quotations" ON public.obra_quotations FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com')) WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));`;
 
     try {
       await navigator.clipboard.writeText(sql);

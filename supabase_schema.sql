@@ -1,18 +1,19 @@
 -- ============================================================================
 -- SCRIPT SQL BLINDADO PARA REPOSITÓRIO PÚBLICO (GITHUB PAGES + SUPABASE RLS)
--- Restringe 100% da leitura e escrita EXCLUSIVAMENTE ao proprietário autorizado:
--- E-mail autorizado: irineufrancisco@gmail.com
+-- Restringe 100% da leitura e escrita EXCLUSIVAMENTE aos usuários autorizados:
+-- 1) irineufrancisco@gmail.com
+-- 2) mayaraquatrochi@gmail.com
 -- ============================================================================
 
 -- 0. Remove gatilho público de auto-confirmação (impede que estranhos criem contas ativas)
 DROP TRIGGER IF EXISTS trg_auto_confirm_users ON auth.users;
 DROP FUNCTION IF EXISTS public.auto_confirm_new_users();
 
--- Garante que APENAS o seu usuário (irineufrancisco@gmail.com) esteja confirmado e ativo:
+-- Garante que APENAS os usuários autorizados estejam confirmados e ativos:
 UPDATE auth.users
 SET email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
     updated_at = NOW()
-WHERE lower(email) = 'irineufrancisco@gmail.com';
+WHERE lower(email) IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com');
 
 -- 1. Tabela de Orçamentos Planejados (Etapas da Obra)
 CREATE TABLE IF NOT EXISTS public.obra_budgets (
@@ -94,9 +95,7 @@ CREATE TABLE IF NOT EXISTS public.obra_quotations (
 );
 
 -- ============================================================================
--- 6. SEGURANÇA MÁXIMA: RLS TRAVADO EXCLUSIVAMENTE PARA SEU E-MAIL
--- Mesmo que alguém crie uma conta no Supabase, o banco bloqueará tudo se o
--- e-mail do token JWT não for exatamente 'irineufrancisco@gmail.com'.
+-- 6. SEGURANÇA MÁXIMA: RLS TRAVADO EXCLUSIVAMENTE PARA OS 2 E-MAILS AUTORIZADOS
 -- ============================================================================
 ALTER TABLE public.obra_budgets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.obra_purchases ENABLE ROW LEVEL SECURITY;
@@ -122,30 +121,30 @@ DROP POLICY IF EXISTS "Auth obra_quotations" ON public.obra_quotations;
 
 CREATE POLICY "Auth obra_budgets" ON public.obra_budgets
   FOR ALL TO authenticated
-  USING (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com')
-  WITH CHECK (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com');
+  USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'))
+  WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
 
 CREATE POLICY "Auth obra_purchases" ON public.obra_purchases
   FOR ALL TO authenticated
-  USING (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com')
-  WITH CHECK (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com');
+  USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'))
+  WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
 
 CREATE POLICY "Auth obra_equipments" ON public.obra_equipments
   FOR ALL TO authenticated
-  USING (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com')
-  WITH CHECK (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com');
+  USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'))
+  WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
 
 CREATE POLICY "Auth obra_labor" ON public.obra_labor
   FOR ALL TO authenticated
-  USING (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com')
-  WITH CHECK (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com');
+  USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'))
+  WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
 
 CREATE POLICY "Auth obra_quotations" ON public.obra_quotations
   FOR ALL TO authenticated
-  USING (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com')
-  WITH CHECK (lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com');
+  USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'))
+  WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
 
--- 7. Bucket de Storage para Fotos de Comprovantes (Restrito ao proprietário)
+-- 7. Bucket de Storage para Fotos de Comprovantes (Restrito aos 2 usuários autorizados)
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('comprovantes', 'comprovantes', true)
 ON CONFLICT (id) DO NOTHING;
@@ -160,5 +159,5 @@ CREATE POLICY "Upload autenticado comprovantes insert"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (
   bucket_id = 'comprovantes'
-  AND lower(auth.jwt() ->> 'email') = 'irineufrancisco@gmail.com'
+  AND lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com')
 );
