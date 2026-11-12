@@ -68,12 +68,19 @@ window.ObraDB = {
     this.setStatus("LOCAL", "Modo Local (Offline)");
   },
 
+  MASTER_EMAILS: ["irineufrancisco@gmail.com", "irineufrancisco@gail.com"],
+
   isConfigured() {
     return Boolean(this.config && this.config.url && this.config.anonKey);
   },
 
   isAuthenticated() {
     return Boolean(this.client && this.user);
+  },
+
+  isMasterAdmin(emailOverride = null) {
+    const email = String(emailOverride || (this.user && this.user.email) || "").trim().toLowerCase();
+    return this.MASTER_EMAILS.includes(email);
   },
 
   setStatus(status, message = "") {
@@ -87,25 +94,47 @@ window.ObraDB = {
   },
 
   updateStatusUI() {
-    const badges = document.querySelectorAll(".db-status-indicator");
-    badges.forEach(el => {
-      if (this.status === "CONNECTED") {
-        el.className = "db-status-indicator inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer hover:bg-emerald-200 transition-colors";
-        el.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span><span class="hidden sm:inline">Nuvem Blindada (${this.user?.email?.split('@')[0] || 'Ativa'})</span><span class="sm:hidden">Nuvem OK</span>`;
-      } else if (this.status === "AUTH_REQUIRED") {
-        el.className = "db-status-indicator inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 cursor-pointer hover:bg-amber-200 transition-colors";
-        el.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-600 animate-bounce"></span><span class="hidden sm:inline">Fazer Login na Nuvem</span><span class="sm:hidden">Login BD</span>`;
-      } else if (this.status === "SYNCING" || this.status === "CONNECTING") {
-        el.className = "db-status-indicator inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200 cursor-pointer transition-colors";
-        el.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-600 animate-ping"></span><span>Sincronizando...</span>`;
-      } else if (this.status === "ERROR") {
-        el.className = "db-status-indicator inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-300 cursor-pointer hover:bg-red-200 transition-colors";
-        el.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-600"></span><span>Erro BD (Ver Config)</span>`;
+    const isMaster = this.isMasterAdmin();
+
+    // Exibe ou oculta elementos exclusivos do Administrador Master (irineufrancisco@gmail.com)
+    document.querySelectorAll(".master-admin-only").forEach(el => {
+      if (isMaster) {
+        el.classList.remove("hidden");
       } else {
-        el.className = "db-status-indicator inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 cursor-pointer hover:bg-slate-200 transition-colors";
-        el.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="hidden sm:inline">Banco Local (Conectar Nuvem)</span><span class="sm:hidden">BD</span>`;
+        el.classList.add("hidden");
       }
     });
+
+    // Se o usuário atual não for Master e estiver na aba 'admin', redireciona para 'dashboard'
+    if (!isMaster && window.ObraApp && window.ObraApp.currentTab === "admin") {
+      window.ObraApp.switchTab("dashboard");
+    }
+
+    const badges = document.querySelectorAll(".db-status-indicator");
+    badges.forEach(el => {
+      if (this.status === "CONNECTED" && this.user) {
+        const userLabel = this.user.email.split("@")[0];
+        const roleTag = isMaster ? "Master" : "Online";
+        el.className = "db-status-indicator inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer hover:bg-emerald-200 transition-colors";
+        el.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span><span class="hidden sm:inline">${userLabel} (${roleTag})</span><span class="sm:hidden">Conta</span>`;
+      } else if (this.status === "AUTH_REQUIRED") {
+        el.className = "db-status-indicator inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 cursor-pointer hover:bg-amber-200 transition-colors";
+        el.innerHTML = `<i data-lucide="log-in" class="w-3.5 h-3.5 text-amber-700"></i><span>Entrar / Login</span>`;
+      } else if (this.status === "SYNCING" || this.status === "CONNECTING") {
+        el.className = "db-status-indicator inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200 cursor-pointer transition-colors";
+        el.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-600 animate-ping"></span><span>Autenticando...</span>`;
+      } else if (this.status === "ERROR") {
+        el.className = "db-status-indicator inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-300 cursor-pointer hover:bg-red-200 transition-colors";
+        el.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-600"></span><span>Login / Status</span>`;
+      } else {
+        el.className = "db-status-indicator inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 cursor-pointer hover:bg-slate-200 transition-colors";
+        el.innerHTML = `<i data-lucide="user-lock" class="w-3.5 h-3.5 text-slate-600"></i><span>Entrar / Login</span>`;
+      }
+    });
+
+    if (window.lucide) {
+      window.lucide.createIcons();
+    }
   },
 
   // Inicializa o SDK do Supabase e verifica se já existe sessão autenticada

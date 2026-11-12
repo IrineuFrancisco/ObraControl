@@ -38,18 +38,24 @@ window.ObraApp = {
   },
 
   switchTab(tabName) {
+    if (tabName === "admin" && (!window.ObraDB || !window.ObraDB.isMasterAdmin())) {
+      this.openLoginDrawer();
+      return;
+    }
     this.currentTab = tabName;
     // Atualiza navegação lateral (Desktop) e inferior (Mobile)
     document.querySelectorAll("[data-nav-tab]").forEach(btn => {
       const isTarget = btn.getAttribute("data-nav-tab") === tabName;
+      const isMasterBtn = btn.classList.contains("master-admin-only");
+      const hiddenClass = (isMasterBtn && (!window.ObraDB || !window.ObraDB.isMasterAdmin())) ? " hidden" : "";
       if (btn.classList.contains("desktop-nav-btn")) {
-        btn.className = isTarget
+        btn.className = (isTarget
           ? "desktop-nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 text-slate-950 shadow-sm transition-all"
-          : "desktop-nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/70 transition-all";
+          : "desktop-nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/70 transition-all") + (isMasterBtn ? " master-admin-only" : "") + hiddenClass;
       } else if (btn.classList.contains("mobile-nav-btn")) {
-        btn.className = isTarget
+        btn.className = (isTarget
           ? "mobile-nav-btn flex flex-col items-center justify-center py-2 px-1 text-amber-600 font-semibold border-t-2 border-amber-500 transition-all"
-          : "mobile-nav-btn flex flex-col items-center justify-center py-2 px-1 text-slate-500 hover:text-slate-800 border-t-2 border-transparent transition-all";
+          : "mobile-nav-btn flex flex-col items-center justify-center py-2 px-1 text-slate-500 hover:text-slate-800 border-t-2 border-transparent transition-all") + (isMasterBtn ? " master-admin-only" : "") + hiddenClass;
       }
     });
 
@@ -74,6 +80,11 @@ window.ObraApp = {
     this.renderPurchasesModule();
     this.renderEquipmentsModule(summary);
     this.renderLaborModule();
+    this.renderAdminModule();
+
+    if (window.ObraDB) {
+      window.ObraDB.updateStatusUI();
+    }
 
     if (window.lucide) {
       window.lucide.createIcons();
@@ -1698,190 +1709,308 @@ window.ObraApp = {
   },
 
   // =========================================================================
-  // PAINEL DE BANCO DE DADOS EM NUVEM (SUPABASE + AUTH LOGIN BLINDADO)
+  // ÁREA DE LOGIN SEPARADA + ÁREA EXCLUSIVA DO ADMINISTRADOR MASTER
   // =========================================================================
   openDatabaseDrawer() {
+    if (window.ObraDB && window.ObraDB.isMasterAdmin()) {
+      this.switchTab("admin");
+    } else {
+      this.openLoginDrawer();
+    }
+  },
+
+  checkMasterBootstrapEmail(emailVal) {
+    const bootstrapBox = document.getElementById("master-bootstrap-db-box");
+    if (!bootstrapBox) return;
+    const isConfigured = window.ObraDB && window.ObraDB.isConfigured();
+    const isMasterTyped = window.ObraDB && window.ObraDB.isMasterAdmin(emailVal);
+    if (!isConfigured && isMasterTyped) {
+      bootstrapBox.classList.remove("hidden");
+    } else {
+      bootstrapBox.classList.add("hidden");
+    }
+  },
+
+  openLoginDrawer() {
     const cfg = (window.ObraDB && window.ObraDB.config) || { url: "", anonKey: "" };
     const status = (window.ObraDB && window.ObraDB.status) || "LOCAL";
     const user = (window.ObraDB && window.ObraDB.user) || null;
     const lastErr = (window.ObraDB && window.ObraDB.lastError) || "";
     const isConnected = status === "CONNECTED";
     const isConfigured = window.ObraDB && window.ObraDB.isConfigured();
+    const isMaster = window.ObraDB && window.ObraDB.isMasterAdmin();
 
     let statusBanner = "";
     if (isConnected && user) {
       statusBanner = `
-        <div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2.5">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse shrink-0"></span>
+        <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <span class="w-3 h-3 rounded-full bg-emerald-600 animate-pulse shrink-0"></span>
             <div>
-              <p class="text-xs font-bold text-emerald-900">Nuvem Blindada Ativa (${user.email})</p>
-              <p class="text-[11px] text-emerald-700">Sessão autenticada via JWT + RLS. Sincronização em tempo real ativa.</p>
+              <p class="text-xs font-bold text-emerald-950">Sessão Ativa (${user.email})</p>
+              <p class="text-[11px] text-emerald-700">${isMaster ? "Perfil: Administrador Master" : "Perfil: Usuário Autorizado da Obra"}</p>
             </div>
           </div>
-          <button type="button" onclick="window.ObraApp.handleSignOut()" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white border border-emerald-300 text-emerald-800 hover:bg-red-50 hover:text-red-700 hover:border-red-200 shrink-0">
-            Sair
-          </button>
-        </div>`;
-    } else if (status === "AUTH_REQUIRED") {
-      statusBanner = `
-        <div class="p-3.5 rounded-xl bg-amber-50 border border-amber-300">
-          <p class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-            <i data-lucide="shield-alert" class="w-4 h-4 text-amber-600"></i>
-            Projeto Conectado — Aguardando Login de Segurança
-          </p>
-          <p class="text-[11px] text-amber-800 mt-0.5">O banco de dados está protegido por RLS. Faça login com seu e-mail e senha abaixo para liberar a leitura e gravação na nuvem.</p>
+          <span class="text-[10px] px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">Online</span>
         </div>`;
     } else if (status === "ERROR") {
       statusBanner = `
         <div class="p-3.5 rounded-xl bg-red-50 border border-red-200">
-          <p class="text-xs font-bold text-red-900">Falha na conexão com o Banco de Dados</p>
+          <p class="text-xs font-bold text-red-900">Falha na comunicação</p>
           <p class="text-[11px] text-red-700 mt-0.5">${lastErr}</p>
+        </div>`;
+    } else if (!isConfigured) {
+      statusBanner = `
+        <div class="p-3.5 rounded-xl bg-amber-50 border border-amber-300">
+          <p class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+            <i data-lucide="key-round" class="w-4 h-4 text-amber-600"></i>
+            Primeiro Acesso neste Dispositivo
+          </p>
+          <p class="text-[11px] text-amber-800 mt-0.5">Se você for o <strong>Administrador Master</strong>, digite seu e-mail abaixo para vincular o banco de dados neste aparelho.</p>
         </div>`;
     } else {
       statusBanner = `
         <div class="p-3.5 rounded-xl bg-slate-100 border border-slate-300">
-          <p class="text-xs font-bold text-slate-900">Modo Local Ativo (Offline-First)</p>
-          <p class="text-[11px] text-slate-600 mt-0.5">Configure seu projeto gratuito do Supabase e faça login abaixo para sincronizar entre celular e computador com segurança total.</p>
+          <p class="text-xs font-bold text-slate-900">Identificação Necessária</p>
+          <p class="text-[11px] text-slate-600 mt-0.5">Entre com seu e-mail e senha autorizados para carregar os dados reais da obra.</p>
         </div>`;
     }
 
-    const authSectionHtml = isConfigured
-      ? `
-        <!-- ETAPA 2: AUTENTICAÇÃO SEGURA (SUPABASE AUTH) -->
-        <div class="bg-slate-900 text-white p-4 rounded-2xl space-y-3.5 shadow-sm">
+    const html = `
+      <div class="space-y-5">
+        ${statusBanner}
+
+        <div class="bg-slate-900 text-white p-5 rounded-2xl space-y-4 shadow-sm">
           <div class="flex items-center justify-between">
             <h4 class="text-xs font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-              <i data-lucide="lock" class="w-4 h-4"></i>
-              ${user ? "Usuário Autenticado" : "Login de Acesso à Obra (Supabase Auth)"}
+              <i data-lucide="user-check" class="w-4 h-4"></i>
+              ${user ? "Conta Conectada" : "Acesso ao Sistema da Obra"}
             </h4>
-            <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-emerald-400 font-semibold border border-slate-700">RLS Blindado</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-emerald-400 font-semibold border border-slate-700">Protegido</span>
           </div>
 
           ${user ? `
-            <div class="flex items-center justify-between bg-slate-800/90 p-3 rounded-xl border border-slate-700">
-              <div>
-                <p class="text-xs font-bold text-white">${user.email}</p>
-                <p class="text-[11px] text-slate-400">Acesso liberado às tabelas PostgreSQL</p>
+            <div class="space-y-3">
+              <div class="bg-slate-800/90 p-3.5 rounded-xl border border-slate-700 flex items-center justify-between gap-2">
+                <div>
+                  <p class="text-sm font-bold text-white">${user.email}</p>
+                  <p class="text-[11px] text-slate-400 mt-0.5">${isMaster ? "Acesso Total + Painel de Configurações do Banco" : "Acesso Operacional aos Módulos da Obra"}</p>
+                </div>
               </div>
-              <button type="button" onclick="window.ObraApp.handleSignOut()" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-700 text-white">
-                Encerrar Sessão
-              </button>
+
+              ${isMaster ? `
+                <button type="button" onclick="window.ObraApp.closeDrawer(); window.ObraApp.switchTab('admin');" class="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center justify-center gap-2 shadow-sm transition-colors">
+                  <i data-lucide="shield-check" class="w-4 h-4"></i>
+                  Abrir Área de Configurações (Admin Master)
+                </button>
+              ` : ""}
+
+              <div class="grid grid-cols-2 gap-2 pt-1">
+                <button type="button" onclick="window.ObraApp.manualPullCloud()" class="py-2 px-3 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">
+                  Atualizar Dados
+                </button>
+                <button type="button" onclick="window.ObraApp.handleSignOut()" class="py-2 px-3 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white">
+                  Sair da Conta
+                </button>
+              </div>
             </div>
           ` : `
-            <form onsubmit="window.ObraApp.handleAuthSubmit(event, 'login')" class="space-y-3">
+            <form onsubmit="window.ObraApp.handleAuthSubmit(event, 'login')" class="space-y-3.5">
               <div>
-                <label class="block text-[11px] font-bold uppercase text-slate-300 mb-1">E-mail Autorizado *</label>
-                <input type="email" id="auth-input-email" required placeholder="seu-email@exemplo.com" class="w-full px-3.5 py-2 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs outline-none focus:ring-2 focus:ring-amber-500">
+                <label class="block text-[11px] font-bold uppercase text-slate-300 mb-1">E-mail do Usuário *</label>
+                <input type="email" id="auth-input-email" required oninput="window.ObraApp.checkMasterBootstrapEmail(this.value)" placeholder="seu-email@gmail.com" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs outline-none focus:ring-2 focus:ring-amber-500">
               </div>
               <div>
                 <label class="block text-[11px] font-bold uppercase text-slate-300 mb-1">Senha *</label>
-                <input type="password" id="auth-input-password" required minlength="6" placeholder="Mínimo 6 caracteres" class="w-full px-3.5 py-2 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs outline-none focus:ring-2 focus:ring-amber-500">
+                <input type="password" id="auth-input-password" required minlength="6" placeholder="Digite sua senha" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs outline-none focus:ring-2 focus:ring-amber-500">
+              </div>
+
+              <!-- Bloco oculto que só aparece se o banco ainda não estiver configurado neste navegador E o e-mail digitado for do Master Admin -->
+              <div id="master-bootstrap-db-box" class="hidden p-3.5 rounded-xl bg-slate-800/90 border border-amber-500/40 space-y-2.5">
+                <p class="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                  <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                  Administrador Master Detectado — Conexão Inicial
+                </p>
+                <p class="text-[10px] text-slate-300">Como este navegador ainda não possui o banco configurado, informe a URL e a API Key uma única vez:</p>
+                <div>
+                  <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Project URL (Supabase)</label>
+                  <input type="url" id="bootstrap-input-url" value="${cfg.url || "https://gygnuustcewjqijhbxix.supabase.co"}" placeholder="https://seu-projeto.supabase.co" class="w-full px-3 py-1.5 rounded-lg border border-slate-600 bg-slate-900 text-white text-xs font-mono-num">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">API Key (anon / public)</label>
+                  <input type="password" id="bootstrap-input-key" value="${cfg.anonKey || ""}" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." class="w-full px-3 py-1.5 rounded-lg border border-slate-600 bg-slate-900 text-white text-xs font-mono-num">
+                </div>
               </div>
 
               <div id="auth-feedback" class="hidden text-xs p-2.5 rounded-lg"></div>
 
               <div class="pt-1">
                 <button type="submit" id="btn-auth-login" class="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm transition-colors">
-                  Entrar e Sincronizar (Acesso Exclusivo do Proprietário)
+                  Entrar no Sistema
                 </button>
               </div>
             </form>
           `}
         </div>
-      `
-      : "";
+      </div>
+    `;
 
-    const html = `
-      <div class="space-y-5">
-        ${statusBanner}
+    this.openDrawer(
+      "Acesso ao Sistema (Login)",
+      "Entre com sua conta autorizada para visualizar e gerenciar os lançamentos da obra.",
+      html
+    );
+  },
 
-        ${authSectionHtml}
+  renderAdminModule() {
+    const container = document.getElementById("admin-module-content");
+    if (!container) return;
 
-        <!-- ETAPA 1: CREDENCIAIS PÚBLICAS DO PROJETO -->
-        <form onsubmit="window.ObraApp.saveAndTestDatabase(event)" class="space-y-3.5 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-          <div class="flex items-center justify-between">
-            <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-              <i data-lucide="database" class="w-4 h-4 text-blue-600"></i>
-              Conexão do Projeto Supabase
-            </h4>
-            <a href="https://supabase.com/dashboard" target="_blank" rel="noopener" class="text-[11px] font-bold text-blue-600 hover:underline">
-              Painel Supabase ↗
+    const isMaster = window.ObraDB && window.ObraDB.isMasterAdmin();
+    if (!isMaster) {
+      container.innerHTML = `
+        <div class="bg-white rounded-2xl border border-red-200 p-8 text-center max-w-lg mx-auto my-8">
+          <div class="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-3">
+            <i data-lucide="shield-off" class="w-6 h-6"></i>
+          </div>
+          <h3 class="text-base font-extrabold text-slate-900">Acesso Restrito ao Administrador Master</h3>
+          <p class="text-xs text-slate-600 mt-1">Esta área de configuração do banco de dados é exclusiva para o usuário master (irineufrancisco@gmail.com).</p>
+        </div>
+      `;
+      return;
+    }
+
+    const cfg = (window.ObraDB && window.ObraDB.config) || { url: "", anonKey: "" };
+    const user = (window.ObraDB && window.ObraDB.user) || null;
+    const isConfigured = window.ObraDB && window.ObraDB.isConfigured();
+
+    container.innerHTML = `
+      <!-- Cabeçalho da Área do Administrador Master -->
+      <div class="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex items-start gap-3.5">
+          <div class="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-md">
+            <i data-lucide="shield-check" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">Acesso Exclusivo Master</span>
+              <span class="text-xs text-emerald-400 font-semibold">${user ? user.email : ""}</span>
+            </div>
+            <h2 class="text-lg sm:text-xl font-extrabold mt-1">Configurações do Sistema & Banco de Dados</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Gerencie credenciais do Supabase, sincronização em nuvem, políticas RLS e backups completos.</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="window.ObraApp.manualPullCloud()" class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition-colors">
+            <i data-lucide="cloud-download" class="w-4 h-4 text-blue-400"></i> Baixar da Nuvem
+          </button>
+          <button type="button" onclick="window.ObraApp.manualPushCloud()" class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
+            <i data-lucide="cloud-upload" class="w-4 h-4"></i> Enviar p/ Nuvem
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Coluna 1: Configuração do Banco Supabase (7 cols) -->
+        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 p-6 card-shadow space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <i data-lucide="database" class="w-4 h-4 text-blue-600"></i>
+                Credenciais de Conexão do Banco (Supabase)
+              </h3>
+              <p class="text-xs text-slate-500 mt-0.5">Visível apenas para o Administrador Master.</p>
+            </div>
+            <a href="https://supabase.com/dashboard" target="_blank" rel="noopener" class="text-xs font-bold text-blue-600 hover:underline">
+              Abrir Painel Supabase ↗
             </a>
           </div>
 
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Project URL *</label>
-            <input type="url" id="db-input-url" required value="${cfg.url || ""}" placeholder="https://seu-projeto.supabase.co" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono-num outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
+          <form onsubmit="window.ObraApp.saveAndTestDatabase(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Project URL *</label>
+              <input type="url" id="db-input-url" required value="${cfg.url || ""}" placeholder="https://gygnuustcewjqijhbxix.supabase.co" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-mono-num outline-none focus:bg-white focus:ring-2 focus:ring-blue-500">
+            </div>
 
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">API Key (anon / public) *</label>
-            <input type="password" id="db-input-key" required value="${cfg.anonKey || ""}" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono-num outline-none focus:ring-2 focus:ring-blue-500">
-            <p class="text-[11px] text-slate-500 mt-1">Chave pública de cliente (segura graças ao bloqueio RLS por login).</p>
-          </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">API Key (anon / public) *</label>
+              <input type="password" id="db-input-key" required value="${cfg.anonKey || ""}" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-mono-num outline-none focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <p class="text-[11px] text-slate-500 mt-1">Protegida por Row Level Security (RLS) no PostgreSQL.</p>
+            </div>
 
-          <div id="db-connect-feedback" class="hidden text-xs p-2.5 rounded-lg"></div>
+            <div id="db-connect-feedback" class="hidden text-xs p-3 rounded-xl"></div>
 
-          <div class="flex flex-wrap items-center gap-2 pt-1">
-            <button type="submit" id="btn-db-connect" class="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-colors">
-              ${isConfigured ? "Atualizar Conexão do Projeto" : "Salvar Projeto e Abrir Login"}
-            </button>
-            ${cfg.url ? `
-              <button type="button" onclick="window.ObraApp.disconnectDatabase()" class="py-2.5 px-3 rounded-xl text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-red-50 hover:text-red-700">
-                Remover
+            <div class="flex flex-wrap items-center gap-2.5 pt-2">
+              <button type="submit" id="btn-db-connect" class="py-2.5 px-5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-colors">
+                ${isConfigured ? "Salvar e Atualizar Conexão" : "Conectar Banco de Dados"}
               </button>
-            ` : ""}
-          </div>
-        </form>
-
-        <!-- Ações manuais de Nuvem -->
-        <div class="p-4 rounded-2xl border border-slate-200 space-y-3">
-          <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-800">Sincronização Manual Nuvem ↔ Dispositivo</h4>
-          <div class="grid grid-cols-2 gap-2.5">
-            <button type="button" onclick="window.ObraApp.manualPullCloud()" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors">
-              <i data-lucide="cloud-download" class="w-4 h-4 text-blue-600"></i> Baixar da Nuvem
-            </button>
-            <button type="button" onclick="window.ObraApp.manualPushCloud()" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors">
-              <i data-lucide="cloud-upload" class="w-4 h-4 text-emerald-600"></i> Enviar p/ Nuvem
-            </button>
-          </div>
+              ${cfg.url ? `
+                <button type="button" onclick="window.ObraApp.disconnectDatabase()" class="py-2.5 px-4 rounded-xl text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-red-50 hover:text-red-700">
+                  Desconectar Banco deste Aparelho
+                </button>
+              ` : ""}
+            </div>
+          </form>
         </div>
 
-        <!-- Passo a Passo + Botão de Copiar SQL Blindado -->
-        <div class="p-4 rounded-2xl bg-slate-800 text-slate-100 space-y-2.5">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-amber-400">Script SQL com RLS Blindado (TO authenticated)</span>
-            <button type="button" onclick="window.ObraApp.copySqlSchema()" id="btn-copy-sql" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500 text-slate-950 hover:bg-amber-400">
-              Copiar SQL Blindado
-            </button>
+        <!-- Coluna 2: Controle de Acessos, SQL e Backups (5 cols) -->
+        <div class="lg:col-span-5 space-y-6">
+          <!-- Usuários Autorizados no RLS -->
+          <div class="bg-white rounded-2xl border border-slate-200/90 p-5 card-shadow space-y-3">
+            <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+              <i data-lucide="users" class="w-4 h-4 text-emerald-600"></i>
+              Usuários Autorizados no Banco (RLS)
+            </h3>
+            <div class="space-y-2 text-xs">
+              <div class="p-3 rounded-xl bg-amber-50/70 border border-amber-200 flex items-center justify-between">
+                <div>
+                  <p class="font-bold text-slate-900">irineufrancisco@gmail.com</p>
+                  <p class="text-[11px] text-amber-800">Administrador Master (Acesso às Configurações + Obra)</p>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-950">Master</span>
+              </div>
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                <div>
+                  <p class="font-bold text-slate-900">mayaraquatrochi@gmail.com</p>
+                  <p class="text-[11px] text-slate-500">Usuária Autorizada (Acesso aos Módulos da Obra)</p>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Operacional</span>
+              </div>
+            </div>
           </div>
-          <p class="text-[11px] text-slate-300 leading-relaxed">
-            No painel do Supabase, abra <strong>SQL Editor → New Query</strong>, cole o script do arquivo <code class="text-amber-300">supabase_schema.sql</code> (ou clique no botão acima) e clique em <strong>Run</strong>. Ele bloqueia qualquer acesso sem login.
-          </p>
-        </div>
 
-        <!-- Backup em Arquivo JSON (Exportar / Importar) -->
-        <div class="p-4 rounded-2xl border border-slate-200 space-y-3">
-          <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-800">Backup Direto em Arquivo (.JSON)</h4>
-          <div class="grid grid-cols-2 gap-2.5">
-            <button type="button" onclick="window.ObraApp.exportJSONBackup()" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold bg-white border border-slate-300 hover:bg-slate-50 text-slate-800">
-              <i data-lucide="download" class="w-3.5 h-3.5"></i> Baixar .JSON
-            </button>
-            <label class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 cursor-pointer">
-              <i data-lucide="upload" class="w-3.5 h-3.5"></i> Importar .JSON
-              <input type="file" accept=".json,application/json" onchange="window.ObraApp.importJSONBackup(event)" class="hidden">
-            </label>
+          <!-- Script SQL e Backups -->
+          <div class="bg-white rounded-2xl border border-slate-200/90 p-5 card-shadow space-y-4">
+            <div class="p-3.5 rounded-xl bg-slate-900 text-slate-100 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-amber-400">Políticas SQL & RLS (Supabase)</span>
+                <button type="button" onclick="window.ObraApp.copySqlSchema()" id="btn-copy-sql" class="px-3 py-1 rounded-lg text-[11px] font-bold bg-amber-500 text-slate-950 hover:bg-amber-400">
+                  Copiar SQL Blindado
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-300">Copia o script completo com tabelas e permissões RLS atualizadas.</p>
+            </div>
+
+            <div>
+              <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">Backup Local (.JSON) & Restauração</h4>
+              <div class="grid grid-cols-2 gap-2.5">
+                <button type="button" onclick="window.ObraApp.exportJSONBackup()" class="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800">
+                  <i data-lucide="download" class="w-4 h-4"></i> Exportar .JSON
+                </button>
+                <label class="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 cursor-pointer">
+                  <i data-lucide="upload" class="w-4 h-4"></i> Importar .JSON
+                  <input type="file" accept=".json,application/json" onchange="window.ObraApp.importJSONBackup(event)" class="hidden">
+                </label>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     `;
 
-    this.openDrawer(
-      "Segurança & Banco na Nuvem (Supabase)",
-      "Protegido com autenticação JWT (E-mail/Senha) e Row Level Security (RLS).",
-      html
-    );
+    if (window.lucide) {
+      window.lucide.createIcons();
+    }
   },
 
   async saveAndTestDatabase(e) {
@@ -1889,65 +2018,99 @@ window.ObraApp = {
     const url = document.getElementById("db-input-url")?.value || "";
     const key = document.getElementById("db-input-key")?.value || "";
     const btn = document.getElementById("btn-db-connect");
+    const fb = document.getElementById("db-connect-feedback");
 
     if (btn) {
       btn.disabled = true;
-      btn.textContent = "Verificando projeto...";
+      btn.textContent = "Verificando conexão...";
     }
 
     window.ObraDB.saveConfig(url, key, true);
-    await window.ObraDB.initClientAndCheckAuth();
+    const res = await window.ObraDB.initClientAndCheckAuth();
 
-    this.openDatabaseDrawer();
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Salvar e Atualizar Conexão";
+    }
+
+    if (fb) {
+      fb.classList.remove("hidden");
+      if (res.ok || res.needsLogin) {
+        fb.className = "text-xs p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold";
+        fb.textContent = "✓ Configurações do banco salvas e conectadas com sucesso!";
+      } else {
+        fb.className = "text-xs p-3 rounded-xl bg-red-50 text-red-800 border border-red-200 font-semibold";
+        fb.textContent = "✕ Falha ao conectar: " + (res.error || "Verifique a URL e a API Key.");
+      }
+    }
+
     this.renderAll();
   },
 
   async handleAuthSubmit(e, mode = "login") {
     if (e) e.preventDefault();
-    const email = document.getElementById("auth-input-email")?.value || "";
+    const email = (document.getElementById("auth-input-email")?.value || "").trim();
     const password = document.getElementById("auth-input-password")?.value || "";
     const fb = document.getElementById("auth-feedback");
     const btnLogin = document.getElementById("btn-auth-login");
-    const btnSignup = document.getElementById("btn-auth-signup");
 
     if (!email || !password) {
       if (fb) {
         fb.classList.remove("hidden");
         fb.className = "text-xs p-2.5 rounded-lg bg-red-900/60 text-red-200 border border-red-700";
-        fb.textContent = "Preencha seu e-mail e senha (mínimo 6 caracteres).";
+        fb.textContent = "Preencha seu e-mail e senha.";
       }
       return;
     }
 
-    if (btnLogin) btnLogin.disabled = true;
-    if (btnSignup) btnSignup.disabled = true;
+    // Se o banco ainda não estiver configurado neste navegador e o Master Admin preencheu os campos de bootstrap
+    if (window.ObraDB && !window.ObraDB.isConfigured() && window.ObraDB.isMasterAdmin(email)) {
+      const bootUrl = (document.getElementById("bootstrap-input-url")?.value || "").trim();
+      const bootKey = (document.getElementById("bootstrap-input-key")?.value || "").trim();
+      if (!bootUrl || !bootKey) {
+        if (fb) {
+          fb.classList.remove("hidden");
+          fb.className = "text-xs p-2.5 rounded-lg bg-amber-900/60 text-amber-200 border border-amber-700";
+          fb.textContent = "Informe a Project URL e a API Key do Supabase para vincular este aparelho.";
+        }
+        return;
+      }
+      window.ObraDB.saveConfig(bootUrl, bootKey, true);
+      await window.ObraDB.initClientAndCheckAuth();
+    }
+
+    if (btnLogin) {
+      btnLogin.disabled = true;
+      btnLogin.textContent = "Autenticando...";
+    }
 
     const res = mode === "signup"
       ? await window.ObraDB.signUp(email, password)
       : await window.ObraDB.signIn(email, password);
 
-    if (btnLogin) btnLogin.disabled = false;
-    if (btnSignup) btnSignup.disabled = false;
+    if (btnLogin) {
+      btnLogin.disabled = false;
+      btnLogin.textContent = "Entrar no Sistema";
+    }
 
     if (res.ok && !res.needsConfirmation) {
-      this.openDatabaseDrawer();
+      this.closeDrawer();
       this.renderAll();
     } else if (fb) {
       fb.classList.remove("hidden");
-      if (res.needsConfirmation) {
-        fb.className = "text-xs p-2.5 rounded-lg bg-emerald-900/60 text-emerald-200 border border-emerald-700";
-        fb.textContent = res.message;
-      } else {
-        fb.className = "text-xs p-2.5 rounded-lg bg-red-900/60 text-red-200 border border-red-700";
-        fb.textContent = "✕ " + (res.error || "Erro na autenticação.");
-      }
+      fb.className = "text-xs p-2.5 rounded-lg bg-red-900/60 text-red-200 border border-red-700";
+      fb.textContent = "✕ " + (res.error || "E-mail ou senha inválidos.");
     }
   },
 
   async handleSignOut() {
     await window.ObraDB.signOut();
-    this.openDatabaseDrawer();
-    this.renderAll();
+    if (this.currentTab === "admin") {
+      this.switchTab("dashboard");
+    } else {
+      this.renderAll();
+    }
+    this.openLoginDrawer();
   },
 
   async manualPullCloud() {
@@ -1978,8 +2141,10 @@ window.ObraApp = {
   },
 
   async disconnectDatabase() {
+    if (!window.ObraDB.isMasterAdmin()) return;
     await window.ObraDB.disconnect();
-    this.openDatabaseDrawer();
+    this.switchTab("dashboard");
+    this.openLoginDrawer();
   },
 
   async copySqlSchema() {

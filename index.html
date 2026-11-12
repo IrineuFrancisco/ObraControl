@@ -93,6 +93,16 @@
         <span>Mão de Obra</span>
       </button>
 
+      <!-- MÓDULO EXCLUSIVO DO ADMINISTRADOR MASTER (irineufrancisco@gmail.com) -->
+      <button onclick="window.ObraApp.switchTab('admin')" data-nav-tab="admin"
+        class="master-admin-only hidden desktop-nav-btn w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/70 transition-all">
+        <span class="flex items-center gap-3">
+          <i data-lucide="settings" class="w-4 h-4 shrink-0 text-amber-400"></i>
+          <span>Admin & Banco BD</span>
+        </span>
+        <span class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-500/20 text-amber-300">Master</span>
+      </button>
+
       <!-- Atalhos de Lançamento Rápido -->
       <div class="pt-5 mt-5 border-t border-slate-800/80">
         <p class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Lançamento Rápido</p>
@@ -115,13 +125,13 @@
 
     <!-- Rodapé Sidebar -->
     <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2.5">
-      <button onclick="window.ObraApp.openDatabaseDrawer()"
+      <button onclick="window.ObraApp.openLoginDrawer()"
         class="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-colors">
         <span class="flex items-center gap-2">
-          <i data-lucide="database" class="w-3.5 h-3.5 text-blue-400"></i>
-          <span>Banco na Nuvem</span>
+          <i data-lucide="user-check" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span>Área de Login</span>
         </span>
-        <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">Supabase</span>
+        <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">Conta</span>
       </button>
       <div class="flex items-center justify-between text-xs text-slate-400">
         <span>Status: <strong id="sidebar-client-name" class="text-slate-200">Painel Ativo</strong></span>
@@ -131,12 +141,12 @@
         <button onclick="window.ObraApp.exportToCSV()"
           class="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors"
           title="Exportar Planilha CSV">
-          <i data-lucide="download" class="w-3.5 h-3.5"></i> Exportar
+          <i data-lucide="download" class="w-3.5 h-3.5"></i> Exportar CSV
         </button>
-        <button onclick="window.ObraApp.resetDemoData()"
-          class="py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-red-950/60 text-slate-400 hover:text-red-300 text-xs transition-colors"
-          title="Restaurar Dados Originais da Obra">
-          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+        <button onclick="window.ObraApp.switchTab('admin')"
+          class="master-admin-only hidden py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-amber-400 text-xs transition-colors"
+          title="Configurações do Administrador Master">
+          <i data-lucide="settings" class="w-3.5 h-3.5"></i>
         </button>
       </div>
     </div>
@@ -178,11 +188,15 @@
 
       <!-- Botões de Ação Rápida no Header -->
       <div class="flex items-center gap-2 shrink-0">
-        <button onclick="window.ObraApp.openDatabaseDrawer()" title="Configurar Banco de Dados na Nuvem (Supabase)"
-          class="db-status-indicator inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 cursor-pointer hover:bg-slate-200 transition-colors">
-          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-          <span class="hidden sm:inline">Banco Local (Conectar Nuvem)</span>
-          <span class="sm:hidden">BD</span>
+        <button onclick="window.ObraApp.switchTab('admin')" title="Área de Configurações do Administrador Master"
+          class="master-admin-only hidden items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-900 text-amber-400 hover:bg-slate-800 transition-colors">
+          <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+          <span class="hidden md:inline">Admin BD</span>
+        </button>
+        <button onclick="window.ObraApp.openLoginDrawer()" title="Acessar Área de Login / Conta"
+          class="db-status-indicator inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 cursor-pointer hover:bg-slate-200 transition-colors">
+          <i data-lucide="user-lock" class="w-3.5 h-3.5"></i>
+          <span>Entrar / Login</span>
         </button>
         <button onclick="window.ObraApp.openPurchaseDrawer()"
           class="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-2xs transition-all">
@@ -692,6 +706,14 @@
             </table>
           </div>
         </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MÓDULO 6: ÁREA DE ADMINISTRADOR MASTER (CONFIGURAÇÕES E BANCO)    -->
+      <!-- Exclusivo para o usuário Master: irineufrancisco@gmail.com        -->
+      <!-- ================================================================= -->
+      <section data-view-section="admin" class="hidden space-y-6">
+        <div id="admin-module-content"></div>
       </section>
 
     </main>
