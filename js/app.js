@@ -1719,25 +1719,11 @@ window.ObraApp = {
     }
   },
 
-  checkMasterBootstrapEmail(emailVal) {
-    const bootstrapBox = document.getElementById("master-bootstrap-db-box");
-    if (!bootstrapBox) return;
-    const isConfigured = window.ObraDB && window.ObraDB.isConfigured();
-    const isMasterTyped = window.ObraDB && window.ObraDB.isMasterAdmin(emailVal);
-    if (!isConfigured && isMasterTyped) {
-      bootstrapBox.classList.remove("hidden");
-    } else {
-      bootstrapBox.classList.add("hidden");
-    }
-  },
-
   openLoginDrawer() {
-    const cfg = (window.ObraDB && window.ObraDB.config) || { url: "", anonKey: "" };
     const status = (window.ObraDB && window.ObraDB.status) || "LOCAL";
     const user = (window.ObraDB && window.ObraDB.user) || null;
     const lastErr = (window.ObraDB && window.ObraDB.lastError) || "";
     const isConnected = status === "CONNECTED";
-    const isConfigured = window.ObraDB && window.ObraDB.isConfigured();
     const isMaster = window.ObraDB && window.ObraDB.isMasterAdmin();
 
     let statusBanner = "";
@@ -1753,26 +1739,26 @@ window.ObraApp = {
           </div>
           <span class="text-[10px] px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">Online</span>
         </div>`;
+    } else if (user && isMaster) {
+      statusBanner = `
+        <div class="p-4 rounded-2xl bg-amber-50 border border-amber-300 flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-bold text-amber-950">Administrador Master (${user.email})</p>
+            <p class="text-[11px] text-amber-800">Acesse a Área de Configurações para conectar o banco de dados.</p>
+          </div>
+          <span class="text-[10px] px-2.5 py-1 rounded-full bg-amber-200 text-amber-950 font-bold">Master</span>
+        </div>`;
     } else if (status === "ERROR") {
       statusBanner = `
         <div class="p-3.5 rounded-xl bg-red-50 border border-red-200">
           <p class="text-xs font-bold text-red-900">Falha na comunicação</p>
           <p class="text-[11px] text-red-700 mt-0.5">${lastErr}</p>
         </div>`;
-    } else if (!isConfigured) {
-      statusBanner = `
-        <div class="p-3.5 rounded-xl bg-amber-50 border border-amber-300">
-          <p class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-            <i data-lucide="key-round" class="w-4 h-4 text-amber-600"></i>
-            Primeiro Acesso neste Dispositivo
-          </p>
-          <p class="text-[11px] text-amber-800 mt-0.5">Se você for o <strong>Administrador Master</strong>, digite seu e-mail abaixo para vincular o banco de dados neste aparelho.</p>
-        </div>`;
     } else {
       statusBanner = `
         <div class="p-3.5 rounded-xl bg-slate-100 border border-slate-300">
-          <p class="text-xs font-bold text-slate-900">Identificação Necessária</p>
-          <p class="text-[11px] text-slate-600 mt-0.5">Entre com seu e-mail e senha autorizados para carregar os dados reais da obra.</p>
+          <p class="text-xs font-bold text-slate-900">Identificação de Usuário</p>
+          <p class="text-[11px] text-slate-600 mt-0.5">Informe seu e-mail e senha para acessar o sistema.</p>
         </div>`;
     }
 
@@ -1784,7 +1770,7 @@ window.ObraApp = {
           <div class="flex items-center justify-between">
             <h4 class="text-xs font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
               <i data-lucide="user-check" class="w-4 h-4"></i>
-              ${user ? "Conta Conectada" : "Acesso ao Sistema da Obra"}
+              ${user ? "Conta Conectada" : "Login de Acesso"}
             </h4>
             <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-emerald-400 font-semibold border border-slate-700">Protegido</span>
           </div>
@@ -1817,36 +1803,19 @@ window.ObraApp = {
           ` : `
             <form onsubmit="window.ObraApp.handleAuthSubmit(event, 'login')" class="space-y-3.5">
               <div>
-                <label class="block text-[11px] font-bold uppercase text-slate-300 mb-1">E-mail do Usuário *</label>
-                <input type="email" id="auth-input-email" required oninput="window.ObraApp.checkMasterBootstrapEmail(this.value)" placeholder="seu-email@gmail.com" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs outline-none focus:ring-2 focus:ring-amber-500">
+                <label class="block text-[11px] font-bold uppercase text-slate-300 mb-1">E-mail *</label>
+                <input type="email" id="auth-input-email" required placeholder="seu-email@gmail.com" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs outline-none focus:ring-2 focus:ring-amber-500">
               </div>
               <div>
                 <label class="block text-[11px] font-bold uppercase text-slate-300 mb-1">Senha *</label>
                 <input type="password" id="auth-input-password" required minlength="6" placeholder="Digite sua senha" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs outline-none focus:ring-2 focus:ring-amber-500">
               </div>
 
-              <!-- Bloco oculto que só aparece se o banco ainda não estiver configurado neste navegador E o e-mail digitado for do Master Admin -->
-              <div id="master-bootstrap-db-box" class="hidden p-3.5 rounded-xl bg-slate-800/90 border border-amber-500/40 space-y-2.5">
-                <p class="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
-                  <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
-                  Administrador Master Detectado — Conexão Inicial
-                </p>
-                <p class="text-[10px] text-slate-300">Como este navegador ainda não possui o banco configurado, informe a URL e a API Key uma única vez:</p>
-                <div>
-                  <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Project URL (Supabase)</label>
-                  <input type="url" id="bootstrap-input-url" value="${cfg.url || "https://gygnuustcewjqijhbxix.supabase.co"}" placeholder="https://seu-projeto.supabase.co" class="w-full px-3 py-1.5 rounded-lg border border-slate-600 bg-slate-900 text-white text-xs font-mono-num">
-                </div>
-                <div>
-                  <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">API Key (anon / public)</label>
-                  <input type="password" id="bootstrap-input-key" value="${cfg.anonKey || ""}" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." class="w-full px-3 py-1.5 rounded-lg border border-slate-600 bg-slate-900 text-white text-xs font-mono-num">
-                </div>
-              </div>
-
               <div id="auth-feedback" class="hidden text-xs p-2.5 rounded-lg"></div>
 
               <div class="pt-1">
                 <button type="submit" id="btn-auth-login" class="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm transition-colors">
-                  Entrar no Sistema
+                  Entrar
                 </button>
               </div>
             </form>
@@ -1857,7 +1826,7 @@ window.ObraApp = {
 
     this.openDrawer(
       "Acesso ao Sistema (Login)",
-      "Entre com sua conta autorizada para visualizar e gerenciar os lançamentos da obra.",
+      "Entre com seu e-mail e senha autorizados.",
       html
     );
   },
@@ -2026,7 +1995,12 @@ window.ObraApp = {
     }
 
     window.ObraDB.saveConfig(url, key, true);
-    const res = await window.ObraDB.initClientAndCheckAuth();
+    let res = await window.ObraDB.initClientAndCheckAuth();
+
+    // Se o Master Admin já tinha informado e-mail e senha no Login antes de configurar o banco, autentica automaticamente
+    if ((res.ok || res.authRequired) && window.ObraDB.pendingMasterEmail && window.ObraDB.pendingMasterPass) {
+      res = await window.ObraDB.signIn(window.ObraDB.pendingMasterEmail, window.ObraDB.pendingMasterPass);
+    }
 
     if (btn) {
       btn.disabled = false;
@@ -2035,7 +2009,7 @@ window.ObraApp = {
 
     if (fb) {
       fb.classList.remove("hidden");
-      if (res.ok || res.needsLogin) {
+      if (res.ok || res.authRequired) {
         fb.className = "text-xs p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold";
         fb.textContent = "✓ Configurações do banco salvas e conectadas com sucesso!";
       } else {
@@ -2063,22 +2037,6 @@ window.ObraApp = {
       return;
     }
 
-    // Se o banco ainda não estiver configurado neste navegador e o Master Admin preencheu os campos de bootstrap
-    if (window.ObraDB && !window.ObraDB.isConfigured() && window.ObraDB.isMasterAdmin(email)) {
-      const bootUrl = (document.getElementById("bootstrap-input-url")?.value || "").trim();
-      const bootKey = (document.getElementById("bootstrap-input-key")?.value || "").trim();
-      if (!bootUrl || !bootKey) {
-        if (fb) {
-          fb.classList.remove("hidden");
-          fb.className = "text-xs p-2.5 rounded-lg bg-amber-900/60 text-amber-200 border border-amber-700";
-          fb.textContent = "Informe a Project URL e a API Key do Supabase para vincular este aparelho.";
-        }
-        return;
-      }
-      window.ObraDB.saveConfig(bootUrl, bootKey, true);
-      await window.ObraDB.initClientAndCheckAuth();
-    }
-
     if (btnLogin) {
       btnLogin.disabled = true;
       btnLogin.textContent = "Autenticando...";
@@ -2090,12 +2048,16 @@ window.ObraApp = {
 
     if (btnLogin) {
       btnLogin.disabled = false;
-      btnLogin.textContent = "Entrar no Sistema";
+      btnLogin.textContent = "Entrar";
     }
 
     if (res.ok && !res.needsConfirmation) {
       this.closeDrawer();
-      this.renderAll();
+      if (res.masterSetupMode) {
+        this.switchTab("admin");
+      } else {
+        this.renderAll();
+      }
     } else if (fb) {
       fb.classList.remove("hidden");
       fb.className = "text-xs p-2.5 rounded-lg bg-red-900/60 text-red-200 border border-red-700";

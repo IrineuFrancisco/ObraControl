@@ -190,6 +190,25 @@ window.ObraDB = {
 
   // Login com E-mail e Senha (Supabase Auth)
   async signIn(email, password) {
+    const cleanEmail = (email || "").trim().toLowerCase();
+
+    // Caso o banco ainda não esteja configurado neste navegador:
+    // Se for o usuário Master (irineufrancisco@gmail.com), libera o acesso à Área de Administrador
+    // para que ele possa inserir as credenciais do banco lá dentro!
+    if (!this.isConfigured()) {
+      if (this.isMasterAdmin(cleanEmail)) {
+        this.user = { email: cleanEmail, isLocalMaster: true };
+        this.pendingMasterEmail = cleanEmail;
+        this.pendingMasterPass = password;
+        this.updateStatusUI();
+        return { ok: true, masterSetupMode: true };
+      }
+      return {
+        ok: false,
+        error: "O banco de dados ainda não foi configurado neste navegador pelo Administrador Master."
+      };
+    }
+
     if (!this.client) {
       const initRes = await this.initClientAndCheckAuth();
       if (!initRes.ok && !initRes.authRequired) return initRes;
@@ -198,7 +217,7 @@ window.ObraDB = {
     try {
       this.setStatus("CONNECTING");
       const { data, error } = await this.client.auth.signInWithPassword({
-        email: email.trim(),
+        email: cleanEmail,
         password
       });
 
@@ -208,6 +227,8 @@ window.ObraDB = {
       }
 
       this.user = data.user;
+      this.pendingMasterEmail = null;
+      this.pendingMasterPass = null;
       return await this.connectAndSync();
     } catch (err) {
       this.setStatus("AUTH_REQUIRED");
