@@ -5,23 +5,52 @@
 
 const STORAGE_KEY = "obracontrol_pro_state_v1";
 
+// IDs fictícios inseridos na concepção inicial do projeto para remoção automática
+const LEGACY_FICTITIOUS_IDS = new Set([
+  "comp-011", "comp-012",
+  "eq-001", "eq-002", "eq-003", "eq-004",
+  "mo-001", "mo-002", "mo-003", "mo-004", "mo-005",
+  "demo-comp-01", "demo-comp-02", "demo-comp-03",
+  "demo-eq-01", "demo-eq-02",
+  "demo-mo-01", "demo-mo-02",
+  "demo-cot-01",
+  "demo-fundacao", "demo-alvenaria", "demo-cobertura", "demo-mao-de-obra", "demo-equipamentos", "demo-taxas"
+]);
+
 window.ObraStore = {
   state: null,
+
+  isFictitiousId(id) {
+    if (!id) return false;
+    return LEGACY_FICTITIOUS_IDS.has(id) || String(id).startsWith("demo-");
+  },
+
+  purgeFictitiousData() {
+    if (!this.state) return;
+    if (Array.isArray(this.state.budgets)) {
+      this.state.budgets = this.state.budgets.filter(x => !this.isFictitiousId(x.id));
+    }
+    if (Array.isArray(this.state.purchases)) {
+      this.state.purchases = this.state.purchases.filter(x => !this.isFictitiousId(x.id));
+    }
+    if (Array.isArray(this.state.equipments)) {
+      this.state.equipments = this.state.equipments.filter(x => !this.isFictitiousId(x.id));
+    }
+    if (Array.isArray(this.state.labor)) {
+      this.state.labor = this.state.labor.filter(x => !this.isFictitiousId(x.id));
+    }
+    if (Array.isArray(this.state.quotations)) {
+      this.state.quotations = this.state.quotations.filter(x => !this.isFictitiousId(x.id));
+    }
+  },
 
   init() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         this.state = JSON.parse(saved);
-        // Se uma conexão anterior com banco vazio zerou os arrays locais, restaura os dados iniciais da obra
-        const isEmpty = (!this.state.budgets || this.state.budgets.length === 0) &&
-          (!this.state.purchases || this.state.purchases.length === 0);
-        if (isEmpty) {
-          this.resetToDefault(false);
-          this.saveLocalOnly();
-        } else if (!this.state.quotations || this.state.quotations.length === 0) {
-          this.state.quotations = JSON.parse(JSON.stringify(window.OBRA_INITIAL_DATA.quotations));
-        }
+        this.purgeFictitiousData();
+        this.saveLocalOnly();
       } else {
         this.resetToDefault(false);
       }

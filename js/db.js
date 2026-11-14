@@ -29,6 +29,10 @@ window.ObraDB = {
 
     if (this.isConfigured()) {
       await this.initClientAndCheckAuth();
+    } else {
+      await this.mergeLocalBackupUpdates();
+      window.ObraStore.saveLocalOnly();
+      if (window.ObraApp) window.ObraApp.renderAll();
     }
   },
 
@@ -553,6 +557,11 @@ window.ObraDB = {
             window.ObraStore.state.quotations = normalRows.map(r => this.mapRowToQuotation(r));
           }
         }
+        await this.purgeCloudFictitiousRows();
+        await this.mergeLocalBackupUpdates();
+        if (window.ObraStore && window.ObraStore.purgeFictitiousData) {
+          window.ObraStore.purgeFictitiousData();
+        }
         window.ObraStore.saveLocalOnly();
         if (window.ObraApp) window.ObraApp.renderAll();
       }
@@ -563,6 +572,59 @@ window.ObraDB = {
     } catch (e) {
       this.setStatus("ERROR", e.message);
       return { ok: false, error: e.message };
+    }
+  },
+
+  // Remove do banco na nuvem (Supabase) os lançamentos fictícios criados na concepção inicial do projeto
+  async purgeCloudFictitiousRows() {
+    if (!this.client || !this.user) return;
+    try {
+      await Promise.all([
+        this.client.from("obra_purchases").delete().in("id", ["comp-011", "comp-012", "demo-comp-01", "demo-comp-02", "demo-comp-03"]),
+        this.client.from("obra_equipments").delete().in("id", ["eq-001", "eq-002", "eq-003", "eq-004", "demo-eq-01", "demo-eq-02"]),
+        this.client.from("obra_labor").delete().in("id", ["mo-001", "mo-002", "mo-003", "mo-004", "mo-005", "demo-mo-01", "demo-mo-02"]),
+        this.client.from("obra_quotations").delete().in("id", ["demo-cot-01"]),
+        this.client.from("obra_budgets").delete().in("id", ["demo-fundacao", "demo-alvenaria", "demo-cobertura", "demo-mao-de-obra", "demo-equipamentos", "demo-taxas"])
+      ]);
+    } catch (_) {
+      // Ignora caso já tenham sido removidos
+    }
+  },
+
+  // Sincroniza automaticamente novas notas do arquivo local (ignorado pelo Git) para a nuvem
+  async mergeLocalBackupUpdates() {
+    try {
+      const resp = await fetch("./backup-obra-prudente.local.json", { cache: "no-store" });
+      if (!resp.ok) return;
+      const localBackup = await resp.json();
+      if (!localBackup || !Array.isArray(localBackup.purchases)) return;
+
+      const currentPurchases = window.ObraStore.state.purchases || [];
+      const byId = new Map(currentPurchases.map(p => [p.id, p]));
+      const toUpsert = [];
+
+      for (const lp of localBackup.purchases) {
+        const existing = byId.get(lp.id);
+        if (!existing) {
+          currentPurchases.unshift(lp);
+          byId.set(lp.id, lp);
+          toUpsert.push(lp);
+        } else if (existing.invoiceNumber !== lp.invoiceNumber || existing.notes !== lp.notes || existing.date !== lp.date) {
+          Object.assign(existing, lp);
+          toUpsert.push(existing);
+        }
+      }
+
+      if (toUpsert.length > 0) {
+        window.ObraStore.state.purchases = currentPurchases;
+        if (this.client && this.user) {
+          await this.client
+            .from("obra_purchases")
+            .upsert(toUpsert.map(p => this.mapPurchaseToRow(p)));
+        }
+      }
+    } catch (_) {
+      // Silencioso caso o arquivo .local.json não exista (ex: no GitHub Pages)
     }
   },
 
