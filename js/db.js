@@ -22,17 +22,144 @@ window.ObraDB = {
   lastSyncAt: null,
   lastError: null,
   realtimeChannel: null,
+  associatedEmailPrefill: "",
 
   async init() {
     this.loadConfig();
+    const cameFromInvite = this.consumeInviteLinkFromUrl();
     this.updateStatusUI();
 
     if (this.isConfigured()) {
       await this.initClientAndCheckAuth();
+      if (cameFromInvite && !this.isAuthenticated() && window.ObraApp) {
+        setTimeout(() => window.ObraApp.openLoginDrawer(), 250);
+      }
     } else {
       await this.mergeLocalBackupUpdates();
       window.ObraStore.saveLocalOnly();
       if (window.ObraApp) window.ObraApp.renderAll();
+    }
+  },
+
+  // Detecta se o usuário abriu um Link de Acesso Associado (?acesso=...) enviado pelo Admin Master
+  consumeInviteLinkFromUrl() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("acesso");
+      if (!token) return false;
+
+      const applied = this.applyInviteToken(token);
+      if (applied.ok) {
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+        return true;
+      }
+    } catch (e) {
+      console.warn("Erro ao ler link de acesso associado:", e);
+    }
+    return false;
+  },
+
+  // Decodifica um link ou código de vínculo gerado pelo Admin Master e estabelece a conexão com o banco
+  applyInviteToken(rawInput) {
+    try {
+      let token = String(rawInput || "").trim();
+      if (!token) return { ok: false, error: "Código vazio." };
+
+      if (token.includes("acesso=")) {
+        const u = new URL(token);
+        token = u.searchParams.get("acesso") || "";
+      }
+      token = token.replace(/^OBRA-/i, "").trim();
+
+      const jsonStr = decodeURIComponent(escape(atob(token)));
+      const payload = JSON.parse(jsonStr);
+      if (!payload || !payload.u || !payload.k) {
+        return { ok: false, error: "Código de vínculo inválido." };
+      }
+
+      this.saveConfig(payload.u, payload.k, true);
+      if (payload.e) {
+        this.associatedEmailPrefill = String(payload.e).trim().toLowerCase();
+      }
+      return { ok: true, email: this.associatedEmailPrefill };
+    } catch (e) {
+      return { ok: false, error: "Não foi possível validar o link/código de vínculo." };
+    }
+  },
+
+  // Gera o Link e Código de Vínculo com o banco já configurado para um Dependente / Associado
+  generateAssociatedAccessPackage(dependentEmail = "", dependentName = "") {
+    if (!this.isConfigured()) return null;
+    const payload = {
+      u: this.config.url,
+      k: this.config.anonKey,
+      e: String(dependentEmail || "").trim().toLowerCase(),
+      n: String(dependentName || "").trim()
+    };
+    const base64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    const baseUrl = window.location.origin + window.location.pathname;
+    return {
+      token: `OBRA-${base64}`,
+      inviteUrl: `${baseUrl}?acesso=${encodeURIComponent(base64)}`
+    };
+  },
+
+  // Cadastra um Dependente / Acesso Associado no Supabase Auth sem derrubar a sessão do Admin Master
+  async registerDependentUser(name, email, password) {
+    if (!this.isMasterAdmin()) {
+      return { ok: false, error: "Apenas o Administrador Master pode conceder acessos." };
+    }
+    if (!this.isConfigured()) {
+      return { ok: false, error: "Conecte o banco de dados na Área do Administrador primeiro." };
+    }
+
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    const cleanName = String(name || "").trim() || cleanEmail.split("@")[0];
+
+    try {
+      // Cria cliente isolado (sem persistir sessão) para não desconectar o Admin Master
+      const tempClient = window.supabase.createClient(this.config.url, this.config.anonKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false
+        }
+      });
+
+      if (password && password.length >= 6) {
+        const { error } = await tempClient.auth.signUp({
+          email: cleanEmail,
+          password
+        });
+        if (error && !String(error.message).includes("already registered") && !String(error.message).includes("only request this after")) {
+          return { ok: false, error: this.translateAuthError(error.message) };
+        }
+      }
+
+      // Salva na lista de dependentes / associados do projeto
+      const info = window.ObraStore.state.projectInfo || {};
+      const list = Array.isArray(info.associatedUsers) ? [...info.associatedUsers] : [
+        { name: "Mayara Quatrochi", email: "mayaraquatrochi@gmail.com", role: "Dependente / Associada", createdAt: "2026-11-12" }
+      ];
+      const existingIdx = list.findIndex(u => u.email.toLowerCase() === cleanEmail);
+      const entry = {
+        name: cleanName,
+        email: cleanEmail,
+        role: "Dependente / Associado",
+        createdAt: new Date().toISOString().slice(0, 10)
+      };
+      if (existingIdx >= 0) {
+        list[existingIdx] = entry;
+      } else {
+        list.push(entry);
+      }
+
+      window.ObraStore.updateProjectInfo({ associatedUsers: list });
+      const pkg = this.generateAssociatedAccessPackage(cleanEmail, cleanName);
+      return { ok: true, entry, pkg };
+    } catch (err) {
+      return { ok: false, error: err.message || "Erro ao registrar dependente." };
     }
   },
 
@@ -584,7 +711,10 @@ window.ObraDB = {
         this.client.from("obra_equipments").delete().in("id", ["eq-001", "eq-002", "eq-003", "eq-004", "demo-eq-01", "demo-eq-02"]),
         this.client.from("obra_labor").delete().in("id", ["mo-001", "mo-002", "mo-003", "mo-004", "mo-005", "demo-mo-01", "demo-mo-02"]),
         this.client.from("obra_quotations").delete().in("id", ["demo-cot-01"]),
-        this.client.from("obra_budgets").delete().in("id", ["demo-fundacao", "demo-alvenaria", "demo-cobertura", "demo-mao-de-obra", "demo-equipamentos", "demo-taxas"])
+        this.client.from("obra_budgets").delete().in("id", [
+          "etapa-fundacao", "etapa-alvenaria", "etapa-cobertura", "etapa-mao-de-obra", "etapa-equipamentos", "etapa-taxas",
+          "demo-fundacao", "demo-alvenaria", "demo-cobertura", "demo-mao-de-obra", "demo-equipamentos", "demo-taxas"
+        ])
       ]);
     } catch (_) {
       // Ignora caso já tenham sido removidos

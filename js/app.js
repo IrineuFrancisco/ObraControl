@@ -1725,6 +1725,8 @@ window.ObraApp = {
     const lastErr = (window.ObraDB && window.ObraDB.lastError) || "";
     const isConnected = status === "CONNECTED";
     const isMaster = window.ObraDB && window.ObraDB.isMasterAdmin();
+    const isConfigured = window.ObraDB && window.ObraDB.isConfigured();
+    const prefillEmail = (window.ObraDB && window.ObraDB.associatedEmailPrefill) || "";
 
     let statusBanner = "";
     if (isConnected && user) {
@@ -1734,7 +1736,7 @@ window.ObraApp = {
             <span class="w-3 h-3 rounded-full bg-emerald-600 animate-pulse shrink-0"></span>
             <div>
               <p class="text-xs font-bold text-emerald-950">Sessão Ativa (${user.email})</p>
-              <p class="text-[11px] text-emerald-700">${isMaster ? "Perfil: Administrador Master" : "Perfil: Usuário Autorizado da Obra"}</p>
+              <p class="text-[11px] text-emerald-700">${isMaster ? "Perfil: Administrador Master" : "Perfil: Acesso Associado / Dependente"}</p>
             </div>
           </div>
           <span class="text-[10px] px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">Online</span>
@@ -1753,6 +1755,15 @@ window.ObraApp = {
         <div class="p-3.5 rounded-xl bg-red-50 border border-red-200">
           <p class="text-xs font-bold text-red-900">Falha na comunicação</p>
           <p class="text-[11px] text-red-700 mt-0.5">${lastErr}</p>
+        </div>`;
+    } else if (isConfigured) {
+      statusBanner = `
+        <div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+          <p class="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+            <i data-lucide="link" class="w-3.5 h-3.5 text-emerald-600"></i>
+            Vínculo com o Banco de Dados Estabelecido
+          </p>
+          <p class="text-[11px] text-emerald-700 mt-0.5">Digite seu e-mail e senha para entrar.</p>
         </div>`;
     } else {
       statusBanner = `
@@ -1780,7 +1791,7 @@ window.ObraApp = {
               <div class="bg-slate-800/90 p-3.5 rounded-xl border border-slate-700 flex items-center justify-between gap-2">
                 <div>
                   <p class="text-sm font-bold text-white">${user.email}</p>
-                  <p class="text-[11px] text-slate-400 mt-0.5">${isMaster ? "Acesso Total + Painel de Configurações do Banco" : "Acesso Operacional aos Módulos da Obra"}</p>
+                  <p class="text-[11px] text-slate-400 mt-0.5">${isMaster ? "Acesso Total + Painel de Configurações do Banco" : "Acesso Associado / Dependente (Módulos da Obra)"}</p>
                 </div>
               </div>
 
@@ -1804,7 +1815,7 @@ window.ObraApp = {
             <form onsubmit="window.ObraApp.handleAuthSubmit(event, 'login')" class="space-y-3.5">
               <div>
                 <label class="block text-[11px] font-bold uppercase text-slate-300 mb-1">E-mail *</label>
-                <input type="email" id="auth-input-email" required placeholder="seu-email@gmail.com" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs outline-none focus:ring-2 focus:ring-amber-500">
+                <input type="email" id="auth-input-email" required value="${prefillEmail}" placeholder="seu-email@gmail.com" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs outline-none focus:ring-2 focus:ring-amber-500">
               </div>
               <div>
                 <label class="block text-[11px] font-bold uppercase text-slate-300 mb-1">Senha *</label>
@@ -1853,6 +1864,44 @@ window.ObraApp = {
     const user = (window.ObraDB && window.ObraDB.user) || null;
     const isConfigured = window.ObraDB && window.ObraDB.isConfigured();
 
+    const info = (window.ObraStore && window.ObraStore.state && window.ObraStore.state.projectInfo) || {};
+    const associatedUsers = Array.isArray(info.associatedUsers) && info.associatedUsers.length > 0
+      ? info.associatedUsers
+      : [
+        { name: "Mayara Quatrochi", email: "mayaraquatrochi@gmail.com", role: "Dependente / Associada", createdAt: "2026-11-12" }
+      ];
+
+    const associatedRowsHtml = associatedUsers.map((dep, idx) => {
+      const pkg = isConfigured ? window.ObraDB.generateAssociatedAccessPackage(dep.email, dep.name) : null;
+      return `
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <p class="text-xs font-extrabold text-slate-900">${dep.name || dep.email}</p>
+              <p class="text-[11px] text-slate-600">${dep.email}</p>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+              ${dep.role || "Dependente / Associado"}
+            </span>
+          </div>
+          ${pkg ? `
+            <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/80">
+              <button type="button" id="btn-copy-link-${idx}" onclick="window.ObraApp.copyDependentAccessLink('${dep.email}', '${dep.name || ""}', 'btn-copy-link-${idx}')" class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                <i data-lucide="link" class="w-3.5 h-3.5"></i> Copiar Link com Vínculo do Banco
+              </button>
+              <button type="button" onclick="window.ObraApp.sendDependentWhatsApp('${dep.email}', '${dep.name || ""}')" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+                <i data-lucide="share-2" class="w-3.5 h-3.5"></i> Enviar WhatsApp
+              </button>
+            </div>
+          ` : `
+            <p class="text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
+              Salve a Project URL e API Key ao lado para gerar o link de acesso já vinculado ao banco.
+            </p>
+          `}
+        </div>
+      `;
+    }).join("");
+
     container.innerHTML = `
       <!-- Cabeçalho da Área do Administrador Master -->
       <div class="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -1865,8 +1914,8 @@ window.ObraApp = {
               <span class="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">Acesso Exclusivo Master</span>
               <span class="text-xs text-emerald-400 font-semibold">${user ? user.email : ""}</span>
             </div>
-            <h2 class="text-lg sm:text-xl font-extrabold mt-1">Configurações do Sistema & Banco de Dados</h2>
-            <p class="text-xs text-slate-400 mt-0.5">Gerencie credenciais do Supabase, sincronização em nuvem, políticas RLS e backups completos.</p>
+            <h2 class="text-lg sm:text-xl font-extrabold mt-1">Configurações do Sistema, Banco & Acessos Associados</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Gerencie as credenciais do Supabase e conceda acesso a dependentes/associados com vínculo ao banco já estabelecido.</p>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -1880,71 +1929,113 @@ window.ObraApp = {
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Coluna 1: Configuração do Banco Supabase (7 cols) -->
-        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 p-6 card-shadow space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div>
-              <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                <i data-lucide="database" class="w-4 h-4 text-blue-600"></i>
-                Credenciais de Conexão do Banco (Supabase)
-              </h3>
-              <p class="text-xs text-slate-500 mt-0.5">Visível apenas para o Administrador Master.</p>
+        <!-- Coluna 1: Configuração do Banco Supabase + Concessão de Acesso Dependente (7 cols) -->
+        <div class="lg:col-span-7 space-y-6">
+          <!-- Card 1: Credenciais do Banco -->
+          <div class="bg-white rounded-2xl border border-slate-200/90 p-6 card-shadow space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                  <i data-lucide="database" class="w-4 h-4 text-blue-600"></i>
+                  Credenciais de Conexão do Banco (Supabase)
+                </h3>
+                <p class="text-xs text-slate-500 mt-0.5">Exclusivo para o Administrador Master.</p>
+              </div>
+              <a href="https://supabase.com/dashboard" target="_blank" rel="noopener" class="text-xs font-bold text-blue-600 hover:underline">
+                Abrir Painel Supabase ↗
+              </a>
             </div>
-            <a href="https://supabase.com/dashboard" target="_blank" rel="noopener" class="text-xs font-bold text-blue-600 hover:underline">
-              Abrir Painel Supabase ↗
-            </a>
+
+            <form onsubmit="window.ObraApp.saveAndTestDatabase(event)" class="space-y-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Project URL *</label>
+                <input type="url" id="db-input-url" required value="${cfg.url || ""}" placeholder="https://gygnuustcewjqijhbxix.supabase.co" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-mono-num outline-none focus:bg-white focus:ring-2 focus:ring-blue-500">
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">API Key (anon / public) *</label>
+                <input type="password" id="db-input-key" required value="${cfg.anonKey || ""}" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-mono-num outline-none focus:bg-white focus:ring-2 focus:ring-blue-500">
+                <p class="text-[11px] text-slate-500 mt-1">Protegida por Row Level Security (RLS) no PostgreSQL.</p>
+              </div>
+
+              <div id="db-connect-feedback" class="hidden text-xs p-3 rounded-xl"></div>
+
+              <div class="flex flex-wrap items-center gap-2.5 pt-2">
+                <button type="submit" id="btn-db-connect" class="py-2.5 px-5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-colors">
+                  ${isConfigured ? "Salvar e Atualizar Conexão" : "Conectar Banco de Dados"}
+                </button>
+                ${cfg.url ? `
+                  <button type="button" onclick="window.ObraApp.disconnectDatabase()" class="py-2.5 px-4 rounded-xl text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-red-50 hover:text-red-700">
+                    Desconectar Banco deste Aparelho
+                  </button>
+                ` : ""}
+              </div>
+            </form>
           </div>
 
-          <form onsubmit="window.ObraApp.saveAndTestDatabase(event)" class="space-y-4">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Project URL *</label>
-              <input type="url" id="db-input-url" required value="${cfg.url || ""}" placeholder="https://gygnuustcewjqijhbxix.supabase.co" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-mono-num outline-none focus:bg-white focus:ring-2 focus:ring-blue-500">
+          <!-- Card 2: Conceder Novo Acesso Associado / Dependente -->
+          <div class="bg-white rounded-2xl border border-slate-200/90 p-6 card-shadow space-y-4">
+            <div class="border-b border-slate-100 pb-3">
+              <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-4 h-4 text-amber-600"></i>
+                Conceder Acesso Associado / Dependente (Com Vínculo ao Banco)
+              </h3>
+              <p class="text-xs text-slate-500 mt-0.5">
+                Habilite um usuário dependente e gere um <strong>Link de Acesso Vinculado</strong>. Quando o dependente abrir o link no celular ou computador dele, o vínculo com o banco já estará estabelecido automaticamente e ele precisará apenas digitar login e senha.
+              </p>
             </div>
 
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">API Key (anon / public) *</label>
-              <input type="password" id="db-input-key" required value="${cfg.anonKey || ""}" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-mono-num outline-none focus:bg-white focus:ring-2 focus:ring-blue-500">
-              <p class="text-[11px] text-slate-500 mt-1">Protegida por Row Level Security (RLS) no PostgreSQL.</p>
-            </div>
+            <form onsubmit="window.ObraApp.handleCreateDependent(event)" class="space-y-3.5">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Nome do Dependente / Associado *</label>
+                  <input type="text" id="dep-input-name" required placeholder="Ex: Mayara Quatrochi" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">E-mail de Login do Dependente *</label>
+                  <input type="email" id="dep-input-email" required placeholder="email@gmail.com" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+              </div>
 
-            <div id="db-connect-feedback" class="hidden text-xs p-3 rounded-xl"></div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Senha Inicial (mínimo 6 caracteres) *</label>
+                <input type="text" id="dep-input-password" required minlength="6" placeholder="Defina a senha de acesso do dependente" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono-num outline-none focus:ring-2 focus:ring-amber-500">
+              </div>
 
-            <div class="flex flex-wrap items-center gap-2.5 pt-2">
-              <button type="submit" id="btn-db-connect" class="py-2.5 px-5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-colors">
-                ${isConfigured ? "Salvar e Atualizar Conexão" : "Conectar Banco de Dados"}
+              <div id="dep-feedback" class="hidden text-xs p-3 rounded-xl"></div>
+
+              <button type="submit" id="btn-create-dep" class="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm transition-colors flex items-center justify-center gap-2">
+                <i data-lucide="key-round" class="w-4 h-4"></i>
+                Habilitar Dependente e Gerar Link com Vínculo ao Banco
               </button>
-              ${cfg.url ? `
-                <button type="button" onclick="window.ObraApp.disconnectDatabase()" class="py-2.5 px-4 rounded-xl text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-red-50 hover:text-red-700">
-                  Desconectar Banco deste Aparelho
-                </button>
-              ` : ""}
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
 
-        <!-- Coluna 2: Controle de Acessos, SQL e Backups (5 cols) -->
+        <!-- Coluna 2: Lista de Dependentes Vinculados, SQL e Backups (5 cols) -->
         <div class="lg:col-span-5 space-y-6">
-          <!-- Usuários Autorizados no RLS -->
-          <div class="bg-white rounded-2xl border border-slate-200/90 p-5 card-shadow space-y-3">
+          <!-- Usuários Associados / Dependentes com Link de Vínculo -->
+          <div class="bg-white rounded-2xl border border-slate-200/90 p-5 card-shadow space-y-3.5">
             <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
               <i data-lucide="users" class="w-4 h-4 text-emerald-600"></i>
-              Usuários Autorizados no Banco (RLS)
+              Acessos Associados / Dependentes Ativos
             </h3>
-            <div class="space-y-2 text-xs">
+            <p class="text-[11px] text-slate-500">
+              Envie o <strong>Link com Vínculo do Banco</strong> para o dependente. Ao clicar, o aparelho dele é vinculado automaticamente ao seu banco Supabase e abre direto a tela de Login (E-mail e Senha).
+            </p>
+
+            <div class="space-y-2.5">
+              <!-- Admin Master -->
               <div class="p-3 rounded-xl bg-amber-50/70 border border-amber-200 flex items-center justify-between">
                 <div>
-                  <p class="font-bold text-slate-900">irineufrancisco@gmail.com</p>
-                  <p class="text-[11px] text-amber-800">Administrador Master (Acesso às Configurações + Obra)</p>
+                  <p class="text-xs font-bold text-slate-900">irineufrancisco@gmail.com</p>
+                  <p class="text-[11px] text-amber-800">Administrador Master (Controle Total + Configurações)</p>
                 </div>
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-950">Master</span>
               </div>
-              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                <div>
-                  <p class="font-bold text-slate-900">mayaraquatrochi@gmail.com</p>
-                  <p class="text-[11px] text-slate-500">Usuária Autorizada (Acesso aos Módulos da Obra)</p>
-                </div>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Operacional</span>
-              </div>
+
+              <!-- Dependentes -->
+              ${associatedRowsHtml}
             </div>
           </div>
 
@@ -1957,7 +2048,7 @@ window.ObraApp = {
                   Copiar SQL Blindado
                 </button>
               </div>
-              <p class="text-[11px] text-slate-300">Copia o script completo com tabelas e permissões RLS atualizadas.</p>
+              <p class="text-[11px] text-slate-300">Inclui automaticamente o Admin Master e todos os Dependentes cadastrados acima.</p>
             </div>
 
             <div>
@@ -1980,6 +2071,76 @@ window.ObraApp = {
     if (window.lucide) {
       window.lucide.createIcons();
     }
+  },
+
+  async handleCreateDependent(e) {
+    e.preventDefault();
+    const name = (document.getElementById("dep-input-name")?.value || "").trim();
+    const email = (document.getElementById("dep-input-email")?.value || "").trim().toLowerCase();
+    const password = document.getElementById("dep-input-password")?.value || "";
+    const fb = document.getElementById("dep-feedback");
+    const btn = document.getElementById("btn-create-dep");
+
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Habilitando dependente e gerando vínculo...";
+    }
+
+    const res = await window.ObraDB.registerDependentUser(name, email, password);
+
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Habilitar Dependente e Gerar Link com Vínculo ao Banco";
+    }
+
+    if (fb) {
+      fb.classList.remove("hidden");
+      if (res.ok && res.pkg) {
+        fb.className = "text-xs p-3.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 space-y-2";
+        fb.innerHTML = `
+          <p class="font-bold">✓ Acesso Associado habilitado para ${email}!</p>
+          <p class="text-[11px]">Envie o link abaixo para o dependente (ao abrir o link, o banco já estará vinculado automaticamente):</p>
+          <input type="text" readonly value="${res.pkg.inviteUrl}" onclick="this.select()" class="w-full px-2.5 py-1.5 rounded-lg bg-white border border-emerald-300 text-[11px] font-mono-num">
+        `;
+        try {
+          await navigator.clipboard.writeText(res.pkg.inviteUrl);
+        } catch (_) { }
+      } else {
+        fb.className = "text-xs p-3 rounded-xl bg-red-50 text-red-800 border border-red-200 font-semibold";
+        fb.textContent = "✕ " + (res.error || "Não foi possível habilitar o dependente.");
+      }
+    }
+
+    this.renderAdminModule();
+  },
+
+  async copyDependentAccessLink(email, name, btnId) {
+    const pkg = window.ObraDB.generateAssociatedAccessPackage(email, name);
+    if (!pkg) {
+      alert("Salve e conecte as credenciais do banco primeiro.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(pkg.inviteUrl);
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        const oldHtml = btn.innerHTML;
+        btn.innerHTML = "✓ Link com Vínculo Copiado!";
+        setTimeout(() => { btn.innerHTML = oldHtml; if (window.lucide) window.lucide.createIcons(); }, 2500);
+      }
+    } catch (_) {
+      prompt("Copie o Link de Acesso Associado abaixo:", pkg.inviteUrl);
+    }
+  },
+
+  sendDependentWhatsApp(email, name) {
+    const pkg = window.ObraDB.generateAssociatedAccessPackage(email, name);
+    if (!pkg) {
+      alert("Salve e conecte as credenciais do banco primeiro.");
+      return;
+    }
+    const text = `Olá${name ? " " + name : ""}! Seu acesso associado ao sistema ObraControl Pro já está vinculado ao banco de dados.\n\n1. Acesse por este link exclusivo:\n${pkg.inviteUrl}\n\n2. Entre com seu e-mail (${email}) e sua senha.`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
   },
 
   async saveAndTestDatabase(e) {
@@ -2110,19 +2271,26 @@ window.ObraApp = {
   },
 
   async copySqlSchema() {
+    const info = (window.ObraStore && window.ObraStore.state && window.ObraStore.state.projectInfo) || {};
+    const associated = Array.isArray(info.associatedUsers) && info.associatedUsers.length > 0
+      ? info.associatedUsers.map(u => String(u.email || "").trim().toLowerCase()).filter(Boolean)
+      : ["mayaraquatrochi@gmail.com"];
+    const allEmails = Array.from(new Set(["irineufrancisco@gmail.com", "mayaraquatrochi@gmail.com", ...associated]));
+    const emailListSql = allEmails.map(e => `'${e.replace(/'/g, "")}'`).join(", ");
+
     const sql = `DROP TRIGGER IF EXISTS trg_auto_confirm_users ON auth.users; DROP FUNCTION IF EXISTS public.auto_confirm_new_users();
-UPDATE auth.users SET email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE lower(email) IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com');
+UPDATE auth.users SET email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE lower(email) IN (${emailListSql});
 CREATE TABLE IF NOT EXISTS public.obra_budgets (id TEXT PRIMARY KEY, stage TEXT NOT NULL, category TEXT NOT NULL, planned_amount NUMERIC(12,2) NOT NULL DEFAULT 0, description TEXT, color TEXT DEFAULT '#2563eb', updated_at TIMESTAMPTZ DEFAULT NOW());
 CREATE TABLE IF NOT EXISTS public.obra_purchases (id TEXT PRIMARY KEY, date TEXT NOT NULL, item TEXT NOT NULL, quantity NUMERIC(12,3) NOT NULL DEFAULT 1, unit TEXT DEFAULT 'un', unit_price NUMERIC(12,4) NOT NULL DEFAULT 0, discount NUMERIC(12,2) DEFAULT 0, total_price NUMERIC(12,2) NOT NULL DEFAULT 0, supplier TEXT NOT NULL, stage TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'Materiais', payment_method TEXT DEFAULT 'PIX', status TEXT NOT NULL DEFAULT 'Pago', invoice_number TEXT, receipt_url TEXT, notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
 CREATE TABLE IF NOT EXISTS public.obra_equipments (id TEXT PRIMARY KEY, name TEXT NOT NULL, supplier TEXT NOT NULL, stage TEXT NOT NULL, start_date TEXT NOT NULL, expected_return_date TEXT NOT NULL, actual_return_date TEXT, billing_type TEXT DEFAULT 'Diária', unit_rate NUMERIC(12,2) NOT NULL DEFAULT 0, quantity NUMERIC(10,2) NOT NULL DEFAULT 1, total_price NUMERIC(12,2) NOT NULL DEFAULT 0, payment_status TEXT NOT NULL DEFAULT 'Pendente', rental_status TEXT NOT NULL DEFAULT 'Em Uso', notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
 CREATE TABLE IF NOT EXISTS public.obra_labor (id TEXT PRIMARY KEY, date TEXT NOT NULL, worker_name TEXT NOT NULL, role TEXT NOT NULL, contract_type TEXT NOT NULL DEFAULT 'Diária', quantity NUMERIC(10,2) NOT NULL DEFAULT 1, unit_rate NUMERIC(12,2) NOT NULL DEFAULT 0, total_price NUMERIC(12,2) NOT NULL DEFAULT 0, stage TEXT NOT NULL, status TEXT DEFAULT 'Pago', payment_method TEXT DEFAULT 'PIX', notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
 CREATE TABLE IF NOT EXISTS public.obra_quotations (id TEXT PRIMARY KEY, qty TEXT NOT NULL, material TEXT NOT NULL, prices JSONB NOT NULL DEFAULT '{}'::jsonb, winner TEXT, status TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
 ALTER TABLE public.obra_budgets ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_purchases ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_equipments ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_labor ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_quotations ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "p1" ON public.obra_budgets; DROP POLICY IF EXISTS "Auth obra_budgets" ON public.obra_budgets; CREATE POLICY "Auth obra_budgets" ON public.obra_budgets FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com')) WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
-DROP POLICY IF EXISTS "p2" ON public.obra_purchases; DROP POLICY IF EXISTS "Auth obra_purchases" ON public.obra_purchases; CREATE POLICY "Auth obra_purchases" ON public.obra_purchases FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com')) WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
-DROP POLICY IF EXISTS "p3" ON public.obra_equipments; DROP POLICY IF EXISTS "Auth obra_equipments" ON public.obra_equipments; CREATE POLICY "Auth obra_equipments" ON public.obra_equipments FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com')) WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
-DROP POLICY IF EXISTS "p4" ON public.obra_labor; DROP POLICY IF EXISTS "Auth obra_labor" ON public.obra_labor; CREATE POLICY "Auth obra_labor" ON public.obra_labor FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com')) WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));
-DROP POLICY IF EXISTS "p5" ON public.obra_quotations; DROP POLICY IF EXISTS "Auth obra_quotations" ON public.obra_quotations; CREATE POLICY "Auth obra_quotations" ON public.obra_quotations FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com')) WITH CHECK (lower(auth.jwt() ->> 'email') IN ('irineufrancisco@gmail.com', 'mayaraquatrochi@gmail.com'));`;
+DROP POLICY IF EXISTS "p1" ON public.obra_budgets; DROP POLICY IF EXISTS "Auth obra_budgets" ON public.obra_budgets; CREATE POLICY "Auth obra_budgets" ON public.obra_budgets FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN (${emailListSql})) WITH CHECK (lower(auth.jwt() ->> 'email') IN (${emailListSql}));
+DROP POLICY IF EXISTS "p2" ON public.obra_purchases; DROP POLICY IF EXISTS "Auth obra_purchases" ON public.obra_purchases; CREATE POLICY "Auth obra_purchases" ON public.obra_purchases FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN (${emailListSql})) WITH CHECK (lower(auth.jwt() ->> 'email') IN (${emailListSql}));
+DROP POLICY IF EXISTS "p3" ON public.obra_equipments; DROP POLICY IF EXISTS "Auth obra_equipments" ON public.obra_equipments; CREATE POLICY "Auth obra_equipments" ON public.obra_equipments FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN (${emailListSql})) WITH CHECK (lower(auth.jwt() ->> 'email') IN (${emailListSql}));
+DROP POLICY IF EXISTS "p4" ON public.obra_labor; DROP POLICY IF EXISTS "Auth obra_labor" ON public.obra_labor; CREATE POLICY "Auth obra_labor" ON public.obra_labor FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN (${emailListSql})) WITH CHECK (lower(auth.jwt() ->> 'email') IN (${emailListSql}));
+DROP POLICY IF EXISTS "p5" ON public.obra_quotations; DROP POLICY IF EXISTS "Auth obra_quotations" ON public.obra_quotations; CREATE POLICY "Auth obra_quotations" ON public.obra_quotations FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN (${emailListSql})) WITH CHECK (lower(auth.jwt() ->> 'email') IN (${emailListSql}));`;
 
     try {
       await navigator.clipboard.writeText(sql);

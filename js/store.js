@@ -10,6 +10,7 @@ const LEGACY_FICTITIOUS_IDS = new Set([
   "comp-011", "comp-012",
   "eq-001", "eq-002", "eq-003", "eq-004",
   "mo-001", "mo-002", "mo-003", "mo-004", "mo-005",
+  "etapa-fundacao", "etapa-alvenaria", "etapa-cobertura", "etapa-mao-de-obra", "etapa-equipamentos", "etapa-taxas",
   "demo-comp-01", "demo-comp-02", "demo-comp-03",
   "demo-eq-01", "demo-eq-02",
   "demo-mo-01", "demo-mo-02",
