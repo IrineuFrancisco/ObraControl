@@ -898,9 +898,11 @@ window.ObraApp = {
     const elBudget = document.getElementById("labor-sum-budget");
     const elPaid = document.getElementById("labor-sum-paid");
     const elBalance = document.getElementById("labor-sum-balance");
-    const elPending = document.getElementById("labor-sum-pending");
+    const elBalanceSub = document.getElementById("labor-balance-subtext");
     const elProgressPct = document.getElementById("labor-progress-pct");
     const elProgressBar = document.getElementById("labor-progress-bar");
+    const elProgressKpi = document.getElementById("labor-sum-progress-kpi");
+    const elProgressKpiSub = document.getElementById("labor-progress-kpi-subtext");
     const elPaidSub = document.getElementById("labor-paid-subtext");
     const elBudgetSub = document.getElementById("labor-budget-subtext");
 
@@ -908,24 +910,41 @@ window.ObraApp = {
       if (summary.totalPlanned > 0) {
         elBudget.textContent = fmt(summary.totalPlanned);
         elBudget.className = "text-2xl font-black font-mono-num text-slate-900 tracking-tight";
-        if (elBudgetSub) elBudgetSub.textContent = "Meta orçamentária para equipe";
+        if (elBudgetSub) elBudgetSub.textContent = "Valor fechado da empreitada";
       } else {
         elBudget.textContent = "R$ 0,00";
         elBudget.className = "text-2xl font-black font-mono-num text-slate-400 tracking-tight";
-        if (elBudgetSub) elBudgetSub.textContent = "Clique em Definir para estipular a meta";
+        if (elBudgetSub) elBudgetSub.textContent = "Clique em Definir para colocar o total";
       }
     }
 
     if (elPaid) elPaid.textContent = fmt(summary.totalPaid);
-    if (elPending) elPending.textContent = fmt(summary.totalPending);
 
     if (elBalance) {
-      elBalance.textContent = fmt(summary.remainingBalance);
-      if (summary.totalPlanned > 0 && summary.remainingBalance < 0) {
-        elBalance.className = "text-2xl font-black font-mono-num text-red-600 tracking-tight";
+      elBalance.textContent = fmt(summary.remainingToPay);
+      if (summary.totalPlanned > 0) {
+        if (summary.remainingToPay === 0 && summary.totalPaid > 0) {
+          elBalance.className = "text-2xl font-black font-mono-num text-emerald-600 tracking-tight";
+          if (elBalanceSub) elBalanceSub.textContent = "✓ Contrato 100% quitado!";
+        } else {
+          elBalance.className = "text-2xl font-black font-mono-num text-amber-600 tracking-tight";
+          if (elBalanceSub) elBalanceSub.textContent = `Falta pagar (${fmt(summary.totalPlanned)} - ${fmt(summary.totalPaid)})`;
+        }
       } else {
-        elBalance.className = "text-2xl font-black font-mono-num text-blue-600 tracking-tight";
+        elBalance.className = "text-2xl font-black font-mono-num text-amber-600 tracking-tight";
+        if (elBalanceSub) elBalanceSub.textContent = "Defina o contrato para abater automaticamente";
       }
+    }
+
+    if (elProgressKpi) {
+      elProgressKpi.textContent = summary.totalPlanned > 0
+        ? `${summary.progressPercent.toFixed(1)}%`
+        : "0.0%";
+    }
+    if (elProgressKpiSub) {
+      elProgressKpiSub.textContent = summary.totalPlanned > 0
+        ? `${fmt(summary.totalPaid)} de ${fmt(summary.totalPlanned)}`
+        : "Defina o total contratado";
     }
 
     if (elProgressPct) {
@@ -937,18 +956,14 @@ window.ObraApp = {
     if (elProgressBar) {
       const pct = summary.totalPlanned > 0 ? Math.min(100, Math.max(0, summary.progressPercent)) : 0;
       elProgressBar.style.width = `${pct}%`;
-      if (summary.totalPlanned > 0 && summary.progressPercent > 100) {
-        elProgressBar.className = "h-3 rounded-full bg-red-500 transition-all duration-500";
-      } else if (summary.totalPlanned > 0 && summary.progressPercent > 80) {
-        elProgressBar.className = "h-3 rounded-full bg-amber-500 transition-all duration-500";
-      } else {
-        elProgressBar.className = "h-3 rounded-full bg-emerald-500 transition-all duration-500";
-      }
+      elProgressBar.className = pct >= 100
+        ? "h-3 rounded-full bg-emerald-500 transition-all duration-500"
+        : "h-3 rounded-full bg-amber-500 transition-all duration-500";
     }
 
     if (elPaidSub) {
       const paidCount = allLabor.filter(l => l.status === "Pago").length;
-      elPaidSub.textContent = `${paidCount} pagamentos quitados via PIX`;
+      elPaidSub.textContent = `${paidCount} pagamento(s) quitado(s) via PIX`;
     }
 
     // Modalidades & Comprovantes

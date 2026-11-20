@@ -607,12 +607,12 @@
       <!-- MÓDULO 5: MÃO DE OBRA (ORÇAMENTO, PAGAMENTOS E COMPROVANTES PIX)    -->
       <!-- ================================================================= -->
       <section data-view-section="mao-de-obra" class="hidden space-y-5">
-        <!-- 1. KPIs Principais: Orçamento Total, Já Pago, Saldo e Pendente -->
+        <!-- 1. KPIs Principais: Contrato Total, Já Pago, Falta Pagar e % Quitado -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <!-- Card 1: Orçamento Total Previsto -->
+          <!-- Card 1: Orçamento / Contrato Total -->
           <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
             <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Orçamento Previsto</span>
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Contrato / Orçamento Total</span>
               <button onclick="window.ObraApp.openLaborBudgetDrawer()"
                 class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md hover:bg-blue-100 transition-colors"
                 title="Configurar Orçamento Total de Mão de Obra">
@@ -621,7 +621,7 @@
             </div>
             <div>
               <p id="labor-sum-budget" class="text-2xl font-black font-mono-num text-slate-900 tracking-tight">R$ 0,00</p>
-              <p id="labor-budget-subtext" class="text-[11px] text-slate-500 mt-1">Meta orçamentária para equipe</p>
+              <p id="labor-budget-subtext" class="text-[11px] text-slate-500 mt-1">Valor fechado da empreitada</p>
             </div>
           </div>
 
@@ -639,31 +639,31 @@
             </div>
           </div>
 
-          <!-- Card 3: Saldo Restante do Orçamento -->
+          <!-- Card 3: Saldo a Pagar (Falta Pagar) -->
           <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
             <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Saldo Disponível</span>
-              <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <i data-lucide="wallet" class="w-4 h-4"></i>
-              </div>
-            </div>
-            <div>
-              <p id="labor-sum-balance" class="text-2xl font-black font-mono-num text-blue-600 tracking-tight">R$ 0,00</p>
-              <p class="text-[11px] text-slate-500 mt-1">Disponível para novas etapas</p>
-            </div>
-          </div>
-
-          <!-- Card 4: Total Pendente a Pagar -->
-          <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Total a Pagar</span>
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Saldo a Pagar (Restante)</span>
               <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
                 <i data-lucide="clock" class="w-4 h-4"></i>
               </div>
             </div>
             <div>
-              <p id="labor-sum-pending" class="text-2xl font-black font-mono-num text-amber-600 tracking-tight">R$ 0,00</p>
-              <p class="text-[11px] text-slate-500 mt-1">Medições e diárias pendentes</p>
+              <p id="labor-sum-balance" class="text-2xl font-black font-mono-num text-amber-600 tracking-tight">R$ 0,00</p>
+              <p id="labor-balance-subtext" class="text-[11px] text-slate-500 mt-1">Contrato menos o que já foi pago</p>
+            </div>
+          </div>
+
+          <!-- Card 4: % Já Quitado -->
+          <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">% Já Quitado</span>
+              <div class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                <i data-lucide="pie-chart" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div>
+              <p id="labor-sum-progress-kpi" class="text-2xl font-black font-mono-num text-purple-700 tracking-tight">0.0%</p>
+              <p id="labor-progress-kpi-subtext" class="text-[11px] text-slate-500 mt-1">Do contrato total pago</p>
             </div>
           </div>
         </div>

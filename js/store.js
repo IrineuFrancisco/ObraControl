@@ -255,10 +255,23 @@ window.ObraStore = {
     const customLaborBudget = Number(info.laborBudget || 0);
     const totalPlanned = customLaborBudget > 0 ? customLaborBudget : budgetStagesPlanned;
 
-    const totalSpent = labor.reduce((acc, l) => acc + Number(l.totalPrice || 0), 0);
-    const totalPaid = labor.filter(l => l.status === "Pago").reduce((acc, l) => acc + Number(l.totalPrice || 0), 0);
-    const totalPending = labor.filter(l => l.status !== "Pago").reduce((acc, l) => acc + Number(l.totalPrice || 0), 0);
-    const remainingBalance = totalPlanned - totalSpent;
+    // Total de pagamentos já realizados via PIX / recibos (status === "Pago")
+    const totalPaid = labor
+      .filter(l => l.status === "Pago")
+      .reduce((acc, l) => acc + Number(l.totalPrice || 0), 0);
+
+    // Total de pendências lançadas como linhas na tabela
+    const totalPendingInTable = labor
+      .filter(l => l.status !== "Pago")
+      .reduce((acc, l) => acc + Number(l.totalPrice || 0), 0);
+
+    // Saldo restante a pagar:
+    // Se o usuário estipulou o Contrato / Orçamento Total, o valor a pagar é exatamente
+    // Contrato Total - Já Pago (ex: 56.746 - 3.500 = 53.246)!
+    const remainingToPay = totalPlanned > 0
+      ? Math.max(0, totalPlanned - totalPaid)
+      : totalPendingInTable;
+
     const progressPercent = totalPlanned > 0 ? Math.min(100, (totalPaid / totalPlanned) * 100) : 0;
 
     const byContractType = { Diária: 0, Empreitada: 0, Mensal: 0 };
@@ -279,10 +292,12 @@ window.ObraStore = {
 
     return {
       totalPlanned,
-      totalSpent,
+      totalSpent: totalPaid,
       totalPaid,
-      totalPending,
-      remainingBalance,
+      totalPending: remainingToPay,
+      totalPendingInTable,
+      remainingToPay,
+      remainingBalance: remainingToPay,
       progressPercent,
       byContractType,
       withReceiptCount,
