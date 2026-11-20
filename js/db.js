@@ -573,6 +573,8 @@ window.ObraDB = {
       stage: l.stage,
       status: l.status || "Pago",
       payment_method: l.paymentMethod || "PIX",
+      pix_key: l.pixKey || "",
+      receipt_url: l.receiptUrl || "",
       notes: l.notes || "",
       updated_at: new Date().toISOString()
     };
@@ -590,6 +592,8 @@ window.ObraDB = {
       stage: r.stage,
       status: r.status || "Pago",
       paymentMethod: r.payment_method || "PIX",
+      pixKey: r.pix_key || "",
+      receiptUrl: r.receipt_url || "",
       notes: r.notes || ""
     };
   },

@@ -204,10 +204,12 @@ window.ObraStore = {
 
       let stageLabor = 0;
       if (b.category === "Mão de Obra") {
-        stageLabor = laborSpent;
+        stageLabor = labor
+          .filter(l => !b.stage || b.stage === "Geral" || b.stage === "Mão de Obra" || l.stage === stageName)
+          .reduce((a, l) => a + Number(l.totalPrice || 0), 0);
       } else {
         stageLabor = labor
-          .filter(l => l.stage === stageName && !budgets.some(bg => bg.category === "Mão de Obra"))
+          .filter(l => l.stage === stageName && !budgets.some(bg => bg.category === "Mão de Obra" && bg.stage === stageName))
           .reduce((a, l) => a + Number(l.totalPrice || 0), 0);
       }
 
@@ -241,6 +243,56 @@ window.ObraStore = {
     };
   },
 
+  getLaborSummary() {
+    const labor = this.state.labor || [];
+    const budgets = this.state.budgets || [];
+    const info = this.state.projectInfo || {};
+
+    const budgetStagesPlanned = budgets
+      .filter(b => b.category === "Mão de Obra")
+      .reduce((acc, b) => acc + Number(b.plannedAmount || 0), 0);
+
+    const customLaborBudget = Number(info.laborBudget || 0);
+    const totalPlanned = customLaborBudget > 0 ? customLaborBudget : budgetStagesPlanned;
+
+    const totalSpent = labor.reduce((acc, l) => acc + Number(l.totalPrice || 0), 0);
+    const totalPaid = labor.filter(l => l.status === "Pago").reduce((acc, l) => acc + Number(l.totalPrice || 0), 0);
+    const totalPending = labor.filter(l => l.status !== "Pago").reduce((acc, l) => acc + Number(l.totalPrice || 0), 0);
+    const remainingBalance = totalPlanned - totalSpent;
+    const progressPercent = totalPlanned > 0 ? Math.min(100, (totalPaid / totalPlanned) * 100) : 0;
+
+    const byContractType = { Diária: 0, Empreitada: 0, Mensal: 0 };
+    let withReceiptCount = 0;
+    let withoutReceiptCount = 0;
+
+    labor.forEach(l => {
+      byContractType[l.contractType] = (byContractType[l.contractType] || 0) + Number(l.totalPrice || 0);
+      if (l.receiptUrl && String(l.receiptUrl).trim().length > 0) {
+        withReceiptCount++;
+      } else {
+        withoutReceiptCount++;
+      }
+    });
+
+    const workerNames = [...new Set(labor.map(l => l.workerName).filter(Boolean))];
+    const roles = [...new Set(labor.map(l => l.role).filter(Boolean))];
+
+    return {
+      totalPlanned,
+      totalSpent,
+      totalPaid,
+      totalPending,
+      remainingBalance,
+      progressPercent,
+      byContractType,
+      withReceiptCount,
+      withoutReceiptCount,
+      workerNames,
+      roles,
+      count: labor.length
+    };
+  },
+
   formatCurrency(value) {
     const num = Number(value) || 0;
     return num.toLocaleString("pt-BR", {
@@ -263,6 +315,10 @@ window.ObraStore = {
   // =========================================================================
 
   // 0. Dados Gerais da Obra (Nome da Obra, Cliente, Orçamento Global)
+  updateProjectInfo(infoData) {
+    return this.saveProjectInfo(infoData);
+  },
+
   saveProjectInfo(infoData) {
     this.state.projectInfo = {
       ...(this.state.projectInfo || {}),

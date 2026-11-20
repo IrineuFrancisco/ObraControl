@@ -79,9 +79,15 @@ CREATE TABLE IF NOT EXISTS public.obra_labor (
   stage TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'Pago',
   payment_method TEXT DEFAULT 'PIX',
+  pix_key TEXT,
+  receipt_url TEXT,
   notes TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migrações incrementais seguras para bancos já existentes
+ALTER TABLE public.obra_labor ADD COLUMN IF NOT EXISTS pix_key TEXT;
+ALTER TABLE public.obra_labor ADD COLUMN IF NOT EXISTS receipt_url TEXT;
 
 -- 5. Tabela do Mapa de Cotações Comparativas
 CREATE TABLE IF NOT EXISTS public.obra_quotations (

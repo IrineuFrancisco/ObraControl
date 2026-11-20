@@ -15,7 +15,7 @@ window.ObraApp = {
   filters: {
     purchases: { search: "", stage: "ALL", status: "ALL", category: "ALL", page: 1, perPage: 6 },
     equipments: { search: "", status: "ALL", page: 1, perPage: 6 },
-    labor: { search: "", contractType: "ALL", status: "ALL", page: 1, perPage: 6 }
+    labor: { search: "", contractType: "ALL", status: "ALL", hasReceipt: "ALL", page: 1, perPage: 8 }
   },
 
   init() {
@@ -878,7 +878,7 @@ window.ObraApp = {
   },
 
   // =========================================================================
-  // 5. MÃO DE OBRA (DIÁRIA, EMPREITADA, MENSAL)
+  // 5. MÃO DE OBRA (ORÇAMENTO, PAGAMENTOS E COMPROVANTES PIX)
   // =========================================================================
   updateLaborFilter(field, value) {
     this.filters.labor[field] = value;
@@ -892,41 +892,140 @@ window.ObraApp = {
     const fmtDate = window.ObraStore.formatDateBR;
     const allLabor = window.ObraStore.state.labor || [];
     const f = this.filters.labor;
+    const summary = window.ObraStore.getLaborSummary();
 
-    // Cards de resumo por tipo de contratação (Diária, Empreitada, Mensal)
-    const sumByContract = { Diária: 0, Empreitada: 0, Mensal: 0 };
-    allLabor.forEach(l => {
-      sumByContract[l.contractType] = (sumByContract[l.contractType] || 0) + Number(l.totalPrice || 0);
-    });
+    // 1. Atualizar KPIs do Topo
+    const elBudget = document.getElementById("labor-sum-budget");
+    const elPaid = document.getElementById("labor-sum-paid");
+    const elBalance = document.getElementById("labor-sum-balance");
+    const elPending = document.getElementById("labor-sum-pending");
+    const elProgressPct = document.getElementById("labor-progress-pct");
+    const elProgressBar = document.getElementById("labor-progress-bar");
+    const elPaidSub = document.getElementById("labor-paid-subtext");
+    const elBudgetSub = document.getElementById("labor-budget-subtext");
 
+    if (elBudget) {
+      if (summary.totalPlanned > 0) {
+        elBudget.textContent = fmt(summary.totalPlanned);
+        elBudget.className = "text-2xl font-black font-mono-num text-slate-900 tracking-tight";
+        if (elBudgetSub) elBudgetSub.textContent = "Meta orçamentária para equipe";
+      } else {
+        elBudget.textContent = "R$ 0,00";
+        elBudget.className = "text-2xl font-black font-mono-num text-slate-400 tracking-tight";
+        if (elBudgetSub) elBudgetSub.textContent = "Clique em Definir para estipular a meta";
+      }
+    }
+
+    if (elPaid) elPaid.textContent = fmt(summary.totalPaid);
+    if (elPending) elPending.textContent = fmt(summary.totalPending);
+
+    if (elBalance) {
+      elBalance.textContent = fmt(summary.remainingBalance);
+      if (summary.totalPlanned > 0 && summary.remainingBalance < 0) {
+        elBalance.className = "text-2xl font-black font-mono-num text-red-600 tracking-tight";
+      } else {
+        elBalance.className = "text-2xl font-black font-mono-num text-blue-600 tracking-tight";
+      }
+    }
+
+    if (elProgressPct) {
+      elProgressPct.textContent = summary.totalPlanned > 0
+        ? `${summary.progressPercent.toFixed(1)}%`
+        : "Sem meta";
+    }
+
+    if (elProgressBar) {
+      const pct = summary.totalPlanned > 0 ? Math.min(100, Math.max(0, summary.progressPercent)) : 0;
+      elProgressBar.style.width = `${pct}%`;
+      if (summary.totalPlanned > 0 && summary.progressPercent > 100) {
+        elProgressBar.className = "h-3 rounded-full bg-red-500 transition-all duration-500";
+      } else if (summary.totalPlanned > 0 && summary.progressPercent > 80) {
+        elProgressBar.className = "h-3 rounded-full bg-amber-500 transition-all duration-500";
+      } else {
+        elProgressBar.className = "h-3 rounded-full bg-emerald-500 transition-all duration-500";
+      }
+    }
+
+    if (elPaidSub) {
+      const paidCount = allLabor.filter(l => l.status === "Pago").length;
+      elPaidSub.textContent = `${paidCount} pagamentos quitados via PIX`;
+    }
+
+    // Modalidades & Comprovantes
     const elDiaria = document.getElementById("labor-sum-diaria");
     const elEmpreitada = document.getElementById("labor-sum-empreitada");
     const elMensal = document.getElementById("labor-sum-mensal");
-    if (elDiaria) elDiaria.textContent = fmt(sumByContract["Diária"]);
-    if (elEmpreitada) elEmpreitada.textContent = fmt(sumByContract["Empreitada"]);
-    if (elMensal) elMensal.textContent = fmt(sumByContract["Mensal"]);
+    const elCompStat = document.getElementById("labor-comprovantes-stat");
 
+    if (elDiaria) elDiaria.textContent = fmt(summary.byContractType["Diária"]);
+    if (elEmpreitada) elEmpreitada.textContent = fmt(summary.byContractType["Empreitada"]);
+    if (elMensal) elMensal.textContent = fmt(summary.byContractType["Mensal"]);
+    if (elCompStat) {
+      elCompStat.textContent = `${summary.withReceiptCount} com foto PIX • ${summary.withoutReceiptCount} pendentes`;
+    }
+
+    // Atualizar datalist de profissionais
+    const workersDatalist = document.getElementById("labor-workers-list");
+    if (workersDatalist && summary.workerNames) {
+      workersDatalist.innerHTML = summary.workerNames.map(w => `<option value="${w}">`).join("");
+    }
+
+    // 2. Filtragem
     const filtered = allLabor.filter(l => {
       const q = f.search.trim().toLowerCase();
       const matchSearch = !q ||
-        l.workerName.toLowerCase().includes(q) ||
-        l.role.toLowerCase().includes(q) ||
-        (l.stage && l.stage.toLowerCase().includes(q));
+        (l.workerName && l.workerName.toLowerCase().includes(q)) ||
+        (l.role && l.role.toLowerCase().includes(q)) ||
+        (l.stage && l.stage.toLowerCase().includes(q)) ||
+        (l.pixKey && l.pixKey.toLowerCase().includes(q)) ||
+        (l.notes && l.notes.toLowerCase().includes(q));
       const matchType = f.contractType === "ALL" || l.contractType === f.contractType;
       const matchStatus = f.status === "ALL" || l.status === f.status;
-      return matchSearch && matchType && matchStatus;
+      const hasReceipt = Boolean(l.receiptUrl && String(l.receiptUrl).trim().length > 0);
+      const matchReceipt = f.hasReceipt === "ALL" ||
+        (f.hasReceipt === "WITH_RECEIPT" && hasReceipt) ||
+        (f.hasReceipt === "WITHOUT_RECEIPT" && !hasReceipt);
+      return matchSearch && matchType && matchStatus && matchReceipt;
     });
 
+    // 3. Paginação
+    const perPage = f.perPage || 8;
+    const totalPages = Math.ceil(filtered.length / perPage) || 1;
+    if (f.page > totalPages) f.page = totalPages;
+    const startIndex = (f.page - 1) * perPage;
+    const pageItems = filtered.slice(startIndex, startIndex + perPage);
+
+    const pagContainer = document.getElementById("labor-pagination");
+    if (pagContainer) {
+      if (filtered.length === 0) {
+        pagContainer.innerHTML = `<span class="text-xs text-slate-500">Nenhum registro encontrado.</span>`;
+      } else {
+        pagContainer.innerHTML = `
+          <span class="text-xs text-slate-500">
+            Exibindo <strong>${startIndex + 1}–${Math.min(startIndex + perPage, filtered.length)}</strong> de <strong>${filtered.length}</strong> pagamentos de equipe
+          </span>
+          <div class="flex items-center gap-1">
+            ${this.buildPaginationHtml(f.page, totalPages, "updateLaborFilter")}
+          </div>
+        `;
+      }
+    }
+
+    // 4. Renderizar Linhas da Tabela
     const tbody = document.getElementById("labor-table-body");
     if (tbody) {
       if (filtered.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="7" class="py-10 text-center text-slate-500 text-sm">Nenhum registro de mão de obra encontrado.</td>
+            <td colspan="8" class="py-12 text-center text-slate-500 text-sm">
+              <i data-lucide="users" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
+              <p class="font-semibold text-slate-700">Nenhum pagamento de mão de obra encontrado.</p>
+              <p class="text-xs text-slate-400 mt-1">Clique em "+ Inserir Pagamento / PIX" para registrar o que já foi pago ou programado.</p>
+            </td>
           </tr>
         `;
       } else {
-        tbody.innerHTML = filtered.map(l => {
+        tbody.innerHTML = pageItems.map(l => {
           const isPaid = l.status === "Pago";
           const badgeColor = l.contractType === "Empreitada"
             ? "bg-indigo-50 text-indigo-700 border-indigo-200"
@@ -934,13 +1033,22 @@ window.ObraApp = {
               ? "bg-sky-50 text-sky-700 border-sky-200"
               : "bg-purple-50 text-purple-700 border-purple-200";
 
+          const hasReceipt = Boolean(l.receiptUrl && String(l.receiptUrl).trim().length > 0);
+
           return `
             <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-              <td class="py-3.5 px-4 text-xs font-mono-num text-slate-600 whitespace-nowrap">${fmtDate(l.date)}</td>
+              <td class="py-3.5 px-4 text-xs font-mono-num text-slate-600 whitespace-nowrap">
+                ${fmtDate(l.date)}
+              </td>
               <td class="py-3.5 px-4">
                 <div class="text-sm font-bold text-slate-900">${l.workerName}</div>
                 <div class="text-xs text-slate-500">${l.role} • <span class="font-medium text-slate-700">${l.stage}</span></div>
-                ${l.notes ? `<div class="text-[11px] text-slate-500 mt-0.5">${l.notes}</div>` : ""}
+                ${l.pixKey ? `
+                  <div class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono-num font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 mt-1">
+                    <i data-lucide="zap" class="w-3 h-3 text-emerald-600"></i> PIX: ${l.pixKey}
+                  </div>
+                ` : ""}
+                ${l.notes ? `<div class="text-[11px] text-slate-500 mt-0.5 italic">${l.notes}</div>` : ""}
               </td>
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
                 <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold border ${badgeColor}">
@@ -954,10 +1062,21 @@ window.ObraApp = {
                 ${fmt(l.totalPrice)}
               </td>
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
-                <button onclick="window.ObraApp.toggleLaborPaid('${l.id}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer ${isPaid ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}">
+                <button onclick="window.ObraApp.toggleLaborPaid('${l.id}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition-all ${isPaid ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}" title="Clique para alternar Pago / Pendente">
                   <span class="w-1.5 h-1.5 rounded-full ${isPaid ? 'bg-emerald-600' : 'bg-amber-600'}"></span>
                   ${l.status}
                 </button>
+              </td>
+              <td class="py-3.5 px-4 text-center whitespace-nowrap">
+                ${hasReceipt ? `
+                  <button onclick="window.ObraApp.openReceiptModal('${l.receiptUrl}', 'Comprovante PIX • ${l.workerName.replace(/'/g, "\\'")}', 'Valor: ${fmt(l.totalPrice)} • ${l.role} (${l.stage})')" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors shadow-2xs" title="Visualizar foto do comprovante do PIX">
+                    <i data-lucide="file-check" class="w-3.5 h-3.5 text-emerald-600"></i> Ver PIX
+                  </button>
+                ` : `
+                  <button onclick="window.ObraApp.openLaborDrawer('${l.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors" title="Clique para anexar comprovante do PIX">
+                    <i data-lucide="paperclip" class="w-3.5 h-3.5"></i> + Anexar
+                  </button>
+                `}
               </td>
               <td class="py-3.5 px-4 text-right whitespace-nowrap">
                 <div class="inline-flex items-center gap-1">
@@ -1514,99 +1633,157 @@ window.ObraApp = {
     }
   },
 
-  // --- 4. Form Mão de Obra ---
+  // --- 4. Form Mão de Obra & Comprovante PIX ---
   openLaborDrawer(id = null) {
     const existing = id ? window.ObraStore.state.labor.find(l => l.id === id) : null;
+    const today = new Date().toISOString().split("T")[0];
+    const defaultStage = (window.ObraStore.state.budgets && window.ObraStore.state.budgets[0]?.stage) || "Estrutura e Alvenaria";
     const item = existing || {
       id: "",
-      date: "2026-11-10",
+      date: today,
       workerName: "",
       role: "Pedreiro",
       contractType: "Diária",
       quantity: 1,
       unitRate: "",
       totalPrice: 0,
-      stage: "Estrutura e Alvenaria",
+      stage: defaultStage,
       status: "Pago",
       paymentMethod: "PIX",
+      pixKey: "",
+      receiptUrl: "",
       notes: ""
     };
+
+    const isPaid = item.status === "Pago";
 
     const html = `
       <form onsubmit="window.ObraApp.submitLaborForm(event)" class="space-y-4">
         <input type="hidden" name="id" value="${item.id}">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Data do Pagamento / Medição *</label>
-            <input type="date" name="date" required value="${item.date}" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Tipo de Contratação *</label>
-            <select name="contractType" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold">
-              <option value="Diária" ${item.contractType === "Diária" ? "selected" : ""}>Diária</option>
-              <option value="Empreitada" ${item.contractType === "Empreitada" ? "selected" : ""}>Empreitada</option>
-              <option value="Mensal" ${item.contractType === "Mensal" ? "selected" : ""}>Mensal</option>
-            </select>
-          </div>
-        </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Profissional / Empreiteiro *</label>
-            <input type="text" name="workerName" required value="${item.workerName}" placeholder="Nome do pedreiro, ajudante ou empresa" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Função *</label>
-            <input type="text" name="role" required value="${item.role}" placeholder="Ex: Pedreiro, Servente, Serralheiro..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-          <div>
-            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Qtd (Dias/Medições) *</label>
-            <input type="number" step="0.5" min="0.5" id="form-mo-qty" name="quantity" required value="${item.quantity}" oninput="window.ObraApp.recalcLaborTotal()" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-mono-num">
-          </div>
-          <div>
-            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Valor Unitário (R$) *</label>
-            <input type="number" step="0.01" min="0" id="form-mo-rate" name="unitRate" required value="${item.unitRate}" oninput="window.ObraApp.recalcLaborTotal()" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-mono-num">
-          </div>
-          <div>
-            <label class="block text-[11px] font-bold uppercase text-slate-900 mb-1">Valor Total (R$) *</label>
-            <input type="number" step="0.01" min="0" id="form-mo-total" name="totalPrice" required value="${item.totalPrice}" class="w-full px-3 py-2 rounded-lg border-2 border-amber-500 bg-amber-50/50 text-sm font-extrabold font-mono-num">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Etapa Vinculada *</label>
-            <select name="stage" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
-              ${this.getStageOptionsHtml(item.stage)}
-            </select>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Data do Pagamento *</label>
+            <input type="date" name="date" required value="${item.date}" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono-num outline-none focus:ring-2 focus:ring-amber-500">
           </div>
           <div>
             <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Status do Pagamento *</label>
-            <select name="status" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold">
-              <option value="Pago" ${item.status === "Pago" ? "selected" : ""}>Pago</option>
-              <option value="Pendente" ${item.status === "Pendente" ? "selected" : ""}>Pendente</option>
+            <select name="status" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold ${isPaid ? 'text-emerald-700 bg-emerald-50/50' : 'text-amber-700 bg-amber-50/50'} outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="Pago" ${item.status === "Pago" ? "selected" : ""}>✓ Pago (Quitado)</option>
+              <option value="Pendente" ${item.status === "Pendente" ? "selected" : ""}>⏳ Pendente (A Pagar)</option>
             </select>
           </div>
         </div>
 
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Profissional / Prestador *</label>
+            <input type="text" name="workerName" list="labor-workers-list" required value="${item.workerName}" placeholder="Ex: Sebastião Pedreiro, Carlos Servente..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-amber-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Função / Especialidade *</label>
+            <input type="text" name="role" list="labor-roles-list" required value="${item.role}" placeholder="Ex: Pedreiro, Servente, Serralheiro..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-amber-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Modalidade de Contratação *</label>
+            <select name="contractType" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="Diária" ${item.contractType === "Diária" ? "selected" : ""}>Diária (Serventes, ajudantes e avulsos)</option>
+              <option value="Empreitada" ${item.contractType === "Empreitada" ? "selected" : ""}>Empreitada (Medições de serviço fechado)</option>
+              <option value="Mensal" ${item.contractType === "Mensal" ? "selected" : ""}>Mensal (Mestre de obras e equipe fixa)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Etapa Vinculada da Obra *</label>
+            <select name="stage" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-amber-500">
+              ${this.getStageOptionsHtml(item.stage)}
+            </select>
+          </div>
+        </div>
+
+        <!-- Bloco de Cálculo Financeiro -->
+        <div class="grid grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+          <div>
+            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Qtd (Dias/Medição) *</label>
+            <input type="number" step="0.25" min="0.25" id="form-mo-qty" name="quantity" required value="${item.quantity}" oninput="window.ObraApp.recalcLaborTotal()" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-mono-num outline-none focus:ring-2 focus:ring-amber-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Valor Unitário (R$) *</label>
+            <input type="number" step="0.01" min="0" id="form-mo-rate" name="unitRate" required value="${item.unitRate}" oninput="window.ObraApp.recalcLaborTotal()" placeholder="0,00" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-mono-num outline-none focus:ring-2 focus:ring-amber-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold uppercase text-slate-900 mb-1">Valor Total (R$) *</label>
+            <input type="number" step="0.01" min="0" id="form-mo-total" name="totalPrice" required value="${item.totalPrice}" class="w-full px-3 py-2 rounded-lg border-2 border-amber-500 bg-amber-50/50 text-sm font-extrabold font-mono-num outline-none focus:ring-2 focus:ring-amber-500">
+          </div>
+        </div>
+
+        <!-- Bloco de PIX e Forma de Pagamento -->
+        <div class="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-extrabold uppercase text-emerald-900 flex items-center gap-1.5">
+              <i data-lucide="zap" class="w-3.5 h-3.5 text-emerald-600"></i> Dados da Transação / PIX
+            </span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-200/80 text-emerald-900">PIX Preferencial</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">Forma de Pagamento</label>
+              <select name="paymentMethod" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="PIX" ${item.paymentMethod === "PIX" ? "selected" : ""}>PIX (Transferência Instantânea)</option>
+                <option value="Transferência Bancária" ${item.paymentMethod === "Transferência Bancária" ? "selected" : ""}>TED / Transferência Bancária</option>
+                <option value="Dinheiro" ${item.paymentMethod === "Dinheiro" ? "selected" : ""}>Dinheiro / Espécie</option>
+                <option value="Boleto" ${item.paymentMethod === "Boleto" ? "selected" : ""}>Boleto Bancário</option>
+                <option value="Cheque" ${item.paymentMethod === "Cheque" ? "selected" : ""}>Cheque</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold uppercase text-slate-700 mb-1">Chave PIX / Favorecido</label>
+              <input type="text" name="pixKey" value="${item.pixKey || ""}" placeholder="CPF, Celular, E-mail ou Chave Aleatória" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+          </div>
+        </div>
+
+        <!-- Bloco de Comprovante / Demonstrativo do PIX -->
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+          <label class="block text-xs font-bold uppercase text-slate-700 flex items-center justify-between">
+            <span>Comprovante do PIX / Demonstrativo</span>
+            <span class="text-[10px] text-slate-400 font-normal">Foto da tela ou recibo</span>
+          </label>
+          <input type="file" id="form-labor-receipt-file" accept="image/*" capture="environment" class="block w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
+          <input type="hidden" name="receiptUrl" value="${item.receiptUrl || ""}">
+          ${item.receiptUrl ? `
+            <div class="flex items-center justify-between p-2 rounded-lg bg-emerald-50 border border-emerald-200 mt-2">
+              <span class="text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
+                <i data-lucide="file-check" class="w-4 h-4 text-emerald-600"></i> Comprovante do PIX anexado
+              </span>
+              <button type="button" onclick="window.ObraApp.openReceiptModal('${item.receiptUrl}', 'Comprovante PIX • ${item.workerName.replace(/'/g, "\\'")}', 'Valor: ${window.ObraStore.formatCurrency(item.totalPrice)}')" class="text-xs font-bold text-blue-600 hover:underline">
+                Visualizar Anexo
+              </button>
+            </div>
+          ` : `
+            <p class="text-[11px] text-slate-500">Tire foto da tela do app do banco pelo celular ou anexe imagem/recibo assinado.</p>
+          `}
+        </div>
+
         <div>
-          <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Observações do Serviço</label>
-          <input type="text" name="notes" value="${item.notes || ""}" placeholder="Ex: 1ª quinzena, medição 50% alvenaria..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+          <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Observações do Serviço / Medição</label>
+          <input type="text" name="notes" value="${item.notes || ""}" placeholder="Ex: 1ª quinzena, medição 50% alvenaria..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-amber-500">
         </div>
 
         <div class="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
           <button type="button" onclick="window.ObraApp.closeDrawer()" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button>
-          <button type="submit" class="px-5 py-2.5 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm">Salvar Pagamento</button>
+          <button type="submit" id="btn-submit-labor" class="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm">
+            <i data-lucide="check" class="w-4 h-4"></i> Salvar Pagamento & Comprovante
+          </button>
         </div>
       </form>
     `;
 
     this.openDrawer(
-      existing ? "Editar Registro de Mão de Obra" : "Registrar Pagamento de Mão de Obra",
-      "Controle diárias de ajudantes, empreitadas de pedreiros e mensalistas.",
+      existing ? "Editar Pagamento de Mão de Obra" : "Registrar Pagamento de Mão de Obra",
+      "Controle diárias de ajudantes, medições de empreitada e anexe comprovantes PIX.",
       html
     );
   },
@@ -1620,9 +1797,26 @@ window.ObraApp = {
     }
   },
 
-  submitLaborForm(e) {
+  async submitLaborForm(e) {
     e.preventDefault();
+    const btn = document.getElementById("btn-submit-labor");
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span class="inline-block animate-spin mr-1">⏳</span> Salvando...`;
+    }
+
     const fd = new FormData(e.target);
+    let receiptUrl = fd.get("receiptUrl") || "";
+    const fileInput = document.getElementById("form-labor-receipt-file");
+
+    if (fileInput && fileInput.files && fileInput.files[0] && window.ObraDB) {
+      try {
+        receiptUrl = await window.ObraDB.processAndUploadReceipt(fileInput.files[0]);
+      } catch (err) {
+        console.error("Erro ao subir comprovante do PIX:", err);
+      }
+    }
+
     window.ObraStore.saveLabor({
       id: fd.get("id") || "",
       date: fd.get("date"),
@@ -1634,9 +1828,69 @@ window.ObraApp = {
       totalPrice: parseFloat(fd.get("totalPrice")) || 0,
       stage: fd.get("stage"),
       status: fd.get("status"),
-      paymentMethod: "PIX",
-      notes: fd.get("notes").trim()
+      paymentMethod: fd.get("paymentMethod") || "PIX",
+      pixKey: (fd.get("pixKey") || "").trim(),
+      receiptUrl,
+      notes: (fd.get("notes") || "").trim()
     });
+
+    this.closeDrawer();
+    this.renderAll();
+  },
+
+  openLaborBudgetDrawer() {
+    const info = window.ObraStore.state.projectInfo || {};
+    const laborSummary = window.ObraStore.getLaborSummary();
+    const fmt = window.ObraStore.formatCurrency;
+    const currentBudget = Number(info.laborBudget || 0) > 0 ? info.laborBudget : "";
+
+    const html = `
+      <form onsubmit="window.ObraApp.submitLaborBudgetForm(event)" class="space-y-4">
+        <div class="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-2">
+          <div class="flex items-center gap-2 text-amber-900 font-bold text-sm">
+            <i data-lucide="target" class="w-4 h-4 text-amber-600"></i>
+            <span>Orçamento Total Previsto para Mão de Obra</span>
+          </div>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Defina o teto orçamentário destinado para pedreiros, ajudantes, carpinteiros, serralheiros e equipe. O sistema usará este valor para calcular o saldo restante e o percentual consumido com os pagamentos PIX.
+          </p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Valor do Orçamento Total de Mão de Obra (R$) *</label>
+          <input type="number" step="0.01" min="0" name="laborBudget" required value="${currentBudget}" placeholder="Ex: 85000.00" class="w-full px-3.5 py-3 rounded-xl border-2 border-amber-400 bg-white text-base font-extrabold font-mono-num text-slate-900 outline-none focus:ring-2 focus:ring-amber-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+          <div>
+            <span class="text-slate-500 block">Total já Pago:</span>
+            <strong class="text-emerald-700 font-mono-num text-sm">${fmt(laborSummary.totalPaid)}</strong>
+          </div>
+          <div>
+            <span class="text-slate-500 block">Total Pendente:</span>
+            <strong class="text-amber-700 font-mono-num text-sm">${fmt(laborSummary.totalPending)}</strong>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
+          <button type="button" onclick="window.ObraApp.closeDrawer()" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm">Salvar Meta Orçamentária</button>
+        </div>
+      </form>
+    `;
+
+    this.openDrawer(
+      "Orçamento Total de Mão de Obra",
+      "Defina ou ajuste o valor total previsto para a equipe da obra.",
+      html
+    );
+  },
+
+  submitLaborBudgetForm(e) {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const budgetVal = parseFloat(fd.get("laborBudget")) || 0;
+    window.ObraStore.saveProjectInfo({ laborBudget: budgetVal });
     this.closeDrawer();
     this.renderAll();
   },
@@ -1683,17 +1937,18 @@ window.ObraApp = {
   exportToCSV() {
     const state = window.ObraStore.state;
     const rows = [
-      ["Tipo", "Data", "Descrição / Item", "Fornecedor / Profissional", "Etapa", "Categoria", "Valor Total (R$)", "Status"]
+      ["Tipo", "Data", "Descrição / Item", "Fornecedor / Profissional", "Etapa", "Categoria", "Valor Total (R$)", "Status", "Forma Pagamento / PIX", "Possui Comprovante"]
     ];
 
     (state.purchases || []).forEach(p => {
-      rows.push(["Compra", p.date, p.item, p.supplier, p.stage, p.category, p.totalPrice, p.status]);
+      rows.push(["Compra", p.date, p.item, p.supplier, p.stage, p.category, p.totalPrice, p.status, p.paymentMethod || "PIX", p.receiptUrl ? "SIM" : "NÃO"]);
     });
     (state.equipments || []).forEach(e => {
-      rows.push(["Equipamento", e.startDate, e.name, e.supplier, e.stage, "Equipamentos", e.totalPrice, e.paymentStatus]);
+      rows.push(["Equipamento", e.startDate, e.name, e.supplier, e.stage, "Equipamentos", e.totalPrice, e.paymentStatus, "Fatura / Locação", "NÃO"]);
     });
     (state.labor || []).forEach(l => {
-      rows.push(["Mão de Obra (" + l.contractType + ")", l.date, l.role, l.workerName, l.stage, "Mão de Obra", l.totalPrice, l.status]);
+      const pixInfo = l.pixKey ? `${l.paymentMethod || "PIX"} (${l.pixKey})` : (l.paymentMethod || "PIX");
+      rows.push(["Mão de Obra (" + l.contractType + ")", l.date, l.role, l.workerName, l.stage, "Mão de Obra", l.totalPrice, l.status, pixInfo, l.receiptUrl ? "SIM (Comprovante PIX)" : "NÃO"]);
     });
 
     const csvContent = "\uFEFF" + rows.map(r => r.map(field => `"${String(field ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
@@ -2283,7 +2538,8 @@ UPDATE auth.users SET email_confirmed_at = COALESCE(email_confirmed_at, NOW()), 
 CREATE TABLE IF NOT EXISTS public.obra_budgets (id TEXT PRIMARY KEY, stage TEXT NOT NULL, category TEXT NOT NULL, planned_amount NUMERIC(12,2) NOT NULL DEFAULT 0, description TEXT, color TEXT DEFAULT '#2563eb', updated_at TIMESTAMPTZ DEFAULT NOW());
 CREATE TABLE IF NOT EXISTS public.obra_purchases (id TEXT PRIMARY KEY, date TEXT NOT NULL, item TEXT NOT NULL, quantity NUMERIC(12,3) NOT NULL DEFAULT 1, unit TEXT DEFAULT 'un', unit_price NUMERIC(12,4) NOT NULL DEFAULT 0, discount NUMERIC(12,2) DEFAULT 0, total_price NUMERIC(12,2) NOT NULL DEFAULT 0, supplier TEXT NOT NULL, stage TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'Materiais', payment_method TEXT DEFAULT 'PIX', status TEXT NOT NULL DEFAULT 'Pago', invoice_number TEXT, receipt_url TEXT, notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
 CREATE TABLE IF NOT EXISTS public.obra_equipments (id TEXT PRIMARY KEY, name TEXT NOT NULL, supplier TEXT NOT NULL, stage TEXT NOT NULL, start_date TEXT NOT NULL, expected_return_date TEXT NOT NULL, actual_return_date TEXT, billing_type TEXT DEFAULT 'Diária', unit_rate NUMERIC(12,2) NOT NULL DEFAULT 0, quantity NUMERIC(10,2) NOT NULL DEFAULT 1, total_price NUMERIC(12,2) NOT NULL DEFAULT 0, payment_status TEXT NOT NULL DEFAULT 'Pendente', rental_status TEXT NOT NULL DEFAULT 'Em Uso', notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
-CREATE TABLE IF NOT EXISTS public.obra_labor (id TEXT PRIMARY KEY, date TEXT NOT NULL, worker_name TEXT NOT NULL, role TEXT NOT NULL, contract_type TEXT NOT NULL DEFAULT 'Diária', quantity NUMERIC(10,2) NOT NULL DEFAULT 1, unit_rate NUMERIC(12,2) NOT NULL DEFAULT 0, total_price NUMERIC(12,2) NOT NULL DEFAULT 0, stage TEXT NOT NULL, status TEXT DEFAULT 'Pago', payment_method TEXT DEFAULT 'PIX', notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
+CREATE TABLE IF NOT EXISTS public.obra_labor (id TEXT PRIMARY KEY, date TEXT NOT NULL, worker_name TEXT NOT NULL, role TEXT NOT NULL, contract_type TEXT NOT NULL DEFAULT 'Diária', quantity NUMERIC(10,2) NOT NULL DEFAULT 1, unit_rate NUMERIC(12,2) NOT NULL DEFAULT 0, total_price NUMERIC(12,2) NOT NULL DEFAULT 0, stage TEXT NOT NULL, status TEXT DEFAULT 'Pago', payment_method TEXT DEFAULT 'PIX', pix_key TEXT, receipt_url TEXT, notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
+ALTER TABLE public.obra_labor ADD COLUMN IF NOT EXISTS receipt_url TEXT; ALTER TABLE public.obra_labor ADD COLUMN IF NOT EXISTS pix_key TEXT;
 CREATE TABLE IF NOT EXISTS public.obra_quotations (id TEXT PRIMARY KEY, qty TEXT NOT NULL, material TEXT NOT NULL, prices JSONB NOT NULL DEFAULT '{}'::jsonb, winner TEXT, status TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
 ALTER TABLE public.obra_budgets ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_purchases ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_equipments ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_labor ENABLE ROW LEVEL SECURITY; ALTER TABLE public.obra_quotations ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "p1" ON public.obra_budgets; DROP POLICY IF EXISTS "Auth obra_budgets" ON public.obra_budgets; CREATE POLICY "Auth obra_budgets" ON public.obra_budgets FOR ALL TO authenticated USING (lower(auth.jwt() ->> 'email') IN (${emailListSql})) WITH CHECK (lower(auth.jwt() ->> 'email') IN (${emailListSql}));

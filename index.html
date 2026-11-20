@@ -604,74 +604,136 @@
       </section>
 
       <!-- ================================================================= -->
-      <!-- MÓDULO 5: MÃO DE OBRA (DIÁRIA, EMPREITADA, MENSAL)                -->
+      <!-- MÓDULO 5: MÃO DE OBRA (ORÇAMENTO, PAGAMENTOS E COMPROVANTES PIX)    -->
       <!-- ================================================================= -->
       <section data-view-section="mao-de-obra" class="hidden space-y-5">
-        <!-- Resumo por Modalidade de Contratação -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
-            <div>
-              <span class="text-[11px] font-bold uppercase text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md">Modalidade:
-                Diária</span>
-              <p id="labor-sum-diaria" class="text-xl font-extrabold font-mono-num text-slate-900 mt-2">R$ 0,00</p>
-              <p class="text-xs text-slate-500">Serventes, ajudantes e diárias avulsas</p>
+        <!-- 1. KPIs Principais: Orçamento Total, Já Pago, Saldo e Pendente -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Card 1: Orçamento Total Previsto -->
+          <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Orçamento Previsto</span>
+              <button onclick="window.ObraApp.openLaborBudgetDrawer()"
+                class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md hover:bg-blue-100 transition-colors"
+                title="Configurar Orçamento Total de Mão de Obra">
+                <i data-lucide="edit-3" class="w-3 h-3"></i> Definir
+              </button>
             </div>
-            <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
-              <i data-lucide="calendar-days" class="w-5 h-5"></i>
+            <div>
+              <p id="labor-sum-budget" class="text-2xl font-black font-mono-num text-slate-900 tracking-tight">R$ 0,00</p>
+              <p id="labor-budget-subtext" class="text-[11px] text-slate-500 mt-1">Meta orçamentária para equipe</p>
             </div>
           </div>
 
-          <div class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
-            <div>
-              <span
-                class="text-[11px] font-bold uppercase text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">Modalidade:
-                Empreitada</span>
-              <p id="labor-sum-empreitada" class="text-xl font-extrabold font-mono-num text-slate-900 mt-2">R$ 0,00</p>
-              <p class="text-xs text-slate-500">Pedreiros, serralheria e medições por etapa</p>
+          <!-- Card 2: Total Já Pago -->
+          <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Total Já Pago</span>
+              <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <i data-lucide="check-circle" class="w-4 h-4"></i>
+              </div>
             </div>
-            <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <i data-lucide="hammer" class="w-5 h-5"></i>
+            <div>
+              <p id="labor-sum-paid" class="text-2xl font-black font-mono-num text-emerald-600 tracking-tight">R$ 0,00</p>
+              <p id="labor-paid-subtext" class="text-[11px] text-emerald-700 font-medium mt-1">Quitados via PIX / Recibos</p>
             </div>
           </div>
 
-          <div class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
-            <div>
-              <span
-                class="text-[11px] font-bold uppercase text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md">Modalidade:
-                Mensal</span>
-              <p id="labor-sum-mensal" class="text-xl font-extrabold font-mono-num text-slate-900 mt-2">R$ 0,00</p>
-              <p class="text-xs text-slate-500">Mestre de obras, vigia e mensalistas</p>
+          <!-- Card 3: Saldo Restante do Orçamento -->
+          <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Saldo Disponível</span>
+              <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <i data-lucide="wallet" class="w-4 h-4"></i>
+              </div>
             </div>
-            <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-              <i data-lucide="user-Check" class="w-5 h-5"></i>
+            <div>
+              <p id="labor-sum-balance" class="text-2xl font-black font-mono-num text-blue-600 tracking-tight">R$ 0,00</p>
+              <p class="text-[11px] text-slate-500 mt-1">Disponível para novas etapas</p>
+            </div>
+          </div>
+
+          <!-- Card 4: Total Pendente a Pagar -->
+          <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Total a Pagar</span>
+              <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <i data-lucide="clock" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div>
+              <p id="labor-sum-pending" class="text-2xl font-black font-mono-num text-amber-600 tracking-tight">R$ 0,00</p>
+              <p class="text-[11px] text-slate-500 mt-1">Medições e diárias pendentes</p>
             </div>
           </div>
         </div>
 
-        <!-- Filtros e Botão Novo -->
+        <!-- 2. Barra de Progresso do Orçamento e Modalidades de Contratação -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-4">
+          <div>
+            <div class="flex items-center justify-between text-xs font-bold mb-1.5">
+              <span class="text-slate-700">Consumo do Orçamento de Mão de Obra</span>
+              <span id="labor-progress-pct" class="font-mono-num text-slate-900 font-extrabold text-sm">0.0%</span>
+            </div>
+            <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+              <div id="labor-progress-bar" class="h-3 rounded-full bg-emerald-500 transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-100">
+            <div class="p-3 rounded-xl bg-sky-50/70 border border-sky-100">
+              <span class="text-[10px] font-bold uppercase text-sky-700">Diárias</span>
+              <p id="labor-sum-diaria" class="text-base font-extrabold font-mono-num text-slate-900 mt-0.5">R$ 0,00</p>
+              <p class="text-[10px] text-slate-500">Serventes e ajudantes</p>
+            </div>
+            <div class="p-3 rounded-xl bg-indigo-50/70 border border-indigo-100">
+              <span class="text-[10px] font-bold uppercase text-indigo-700">Empreitadas</span>
+              <p id="labor-sum-empreitada" class="text-base font-extrabold font-mono-num text-slate-900 mt-0.5">R$ 0,00</p>
+              <p class="text-[10px] text-slate-500">Medições por serviço</p>
+            </div>
+            <div class="p-3 rounded-xl bg-purple-50/70 border border-purple-100">
+              <span class="text-[10px] font-bold uppercase text-purple-700">Mensalistas</span>
+              <p id="labor-sum-mensal" class="text-base font-extrabold font-mono-num text-slate-900 mt-0.5">R$ 0,00</p>
+              <p class="text-[10px] text-slate-500">Mestre de obras e vigias</p>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span class="text-[10px] font-bold uppercase text-slate-700">Comprovantes PIX</span>
+              <p id="labor-comprovantes-stat" class="text-xs font-bold text-slate-800 mt-1">0 anexados</p>
+              <p class="text-[10px] text-slate-500">Fotos das transferências</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Barra de Ações e Filtros de Busca -->
         <div class="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-4">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 class="text-lg font-extrabold text-slate-900">Controle de Pagamentos de Mão de Obra</h2>
-              <p class="text-xs text-slate-500">Gerencie diárias, medições de empreitada e folha mensal da equipe.</p>
+              <h2 class="text-lg font-extrabold text-slate-900">Pagamentos Realizados & Comprovantes PIX</h2>
+              <p class="text-xs text-slate-500">Lance o que já foi pago, anexe a foto do comprovante do PIX e acompanhe o saldo orçado.</p>
             </div>
-            <button onclick="window.ObraApp.openLaborDrawer()"
-              class="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-2xs shrink-0">
-              <i data-lucide="plus" class="w-4 h-4"></i> Registrar Pagamento
-            </button>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button onclick="window.ObraApp.openLaborBudgetDrawer()"
+                class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors">
+                <i data-lucide="sliders" class="w-4 h-4"></i> Meta Orçamentária
+              </button>
+              <button onclick="window.ObraApp.openLaborDrawer()"
+                class="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-2xs shrink-0">
+                <i data-lucide="plus" class="w-4 h-4"></i> Inserir Pagamento / PIX
+              </button>
+            </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
-            <div class="relative">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
+            <div class="relative lg:col-span-2">
               <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
-              <input type="text" placeholder="Buscar profissional, função ou etapa..."
+              <input type="text" placeholder="Buscar profissional, função, etapa, PIX..."
                 oninput="window.ObraApp.updateLaborFilter('search', this.value)"
                 class="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm outline-none focus:ring-2 focus:ring-amber-500">
             </div>
 
             <select onchange="window.ObraApp.updateLaborFilter('contractType', this.value)"
               class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-amber-500">
-              <option value="ALL">Todos os Tipos (Diária / Empreitada / Mensal)</option>
+              <option value="ALL">Modalidade: Todas</option>
               <option value="Diária">Diária</option>
               <option value="Empreitada">Empreitada</option>
               <option value="Mensal">Mensal</option>
@@ -680,32 +742,58 @@
             <select onchange="window.ObraApp.updateLaborFilter('status', this.value)"
               class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-amber-500">
               <option value="ALL">Status: Todos</option>
-              <option value="Pago">Pago</option>
+              <option value="Pago">Pago (Quitado)</option>
               <option value="Pendente">Pendente</option>
+            </select>
+
+            <select onchange="window.ObraApp.updateLaborFilter('hasReceipt', this.value)"
+              class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="ALL">Comprovante: Todos</option>
+              <option value="WITH_RECEIPT">Com Comprovante PIX</option>
+              <option value="WITHOUT_RECEIPT">Sem Comprovante</option>
             </select>
           </div>
         </div>
 
-        <!-- Tabela Mão de Obra -->
+        <!-- 4. Tabela de Pagamentos com Botão de Comprovante PIX -->
         <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
               <thead>
-                <tr
-                  class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <th class="py-3.5 px-4">Data</th>
                   <th class="py-3.5 px-4">Profissional / Serviço</th>
                   <th class="py-3.5 px-4 text-center">Modalidade</th>
                   <th class="py-3.5 px-4 text-right">Qtd x Base</th>
                   <th class="py-3.5 px-4 text-right">Valor Total</th>
                   <th class="py-3.5 px-4 text-center">Status</th>
+                  <th class="py-3.5 px-4 text-center">Comprovante PIX</th>
                   <th class="py-3.5 px-4 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody id="labor-table-body"></tbody>
             </table>
           </div>
+
+          <!-- Paginação Mão de Obra -->
+          <div id="labor-pagination" class="p-4 border-t border-slate-200 flex items-center justify-between"></div>
         </div>
+
+        <!-- Datalists para autocompletar profissional e função -->
+        <datalist id="labor-workers-list"></datalist>
+        <datalist id="labor-roles-list">
+          <option value="Pedreiro"></option>
+          <option value="Servente / Ajudante"></option>
+          <option value="Mestre de Obras"></option>
+          <option value="Carpinteiro"></option>
+          <option value="Armador"></option>
+          <option value="Serralheiro"></option>
+          <option value="Eletricista"></option>
+          <option value="Encanador / Bombeiro"></option>
+          <option value="Pintor"></option>
+          <option value="Gesseiro"></option>
+          <option value="Calheiro"></option>
+        </datalist>
       </section>
 
       <!-- ================================================================= -->
